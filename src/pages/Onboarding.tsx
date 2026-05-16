@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
+import { Logo } from '../components/Logo'
 
 const RESERVED = new Set([
   'login', 'logout', 'signup', 'onboarding', 'dashboard', 'admin', 'api',
   'tap', 'zakapedia', 'settings', 'account', 'profile', 'about', 'terms',
-  'privacy', 'help', 'support', 'favicon', 'robots',
+  'privacy', 'help', 'support', 'favicon', 'robots', 'auth',
 ])
 
 function isValidUsername(u: string) {
@@ -30,11 +31,7 @@ export function Onboarding() {
   async function checkAvailability() {
     if (!isValid || isReserved) return
     setChecking(true)
-    const { data } = await supabase
-      .from('users')
-      .select('id')
-      .eq('username', lowered)
-      .maybeSingle()
+    const { data } = await supabase.from('users').select('id').eq('username', lowered).maybeSingle()
     setAvailable(!data)
     setChecking(false)
   }
@@ -44,27 +41,11 @@ export function Onboarding() {
     if (!user || !available) return
     setError('')
     setSaving(true)
-
     try {
-      // Create tap.users record
-      const { error: userError } = await supabase.from('users').insert({
-        id: user.id,
-        username: lowered,
-        email: user.email ?? '',
-      })
+      const { error: userError } = await supabase.from('users').insert({ id: user.id, username: lowered, email: user.email ?? '' })
       if (userError) throw userError
-
-      // Create default tap.pages record
-      const { error: pageError } = await supabase.from('pages').insert({
-        user_id: user.id,
-        theme: 'minimal',
-        accent_color: '#3B82F6',
-        name: '',
-        bio: '',
-        published: false,
-      })
+      const { error: pageError } = await supabase.from('pages').insert({ user_id: user.id, theme: 'minimal', accent_color: '#3B82F6', name: '', bio: '', published: false })
       if (pageError) throw pageError
-
       await refreshTapUser()
       navigate('/dashboard')
     } catch (err) {
@@ -76,77 +57,73 @@ export function Onboarding() {
 
   function hint() {
     if (!lowered) return null
-    if (!isValid) return { ok: false, text: 'Username must be 3–30 chars, lowercase letters, numbers, or hyphens.' }
+    if (!isValid) return { ok: false, text: '3–30 chars, lowercase letters, numbers, or hyphens.' }
     if (isReserved) return { ok: false, text: 'This username is reserved.' }
     if (available === null) return null
-    if (available) return { ok: true, text: `tap.zakapedia.in/${lowered} is available!` }
-    return { ok: false, text: 'Username is taken.' }
+    if (available) return { ok: true, text: `tap.zakapedia.in/${lowered} is yours!` }
+    return { ok: false, text: 'Username is taken. Try another.' }
   }
 
   const h = hint()
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen bg-brand-dark text-brand-text flex flex-col items-center justify-center px-6">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <span className="text-xl font-bold text-gray-900">Tap</span>
-          <h1 className="text-2xl font-semibold text-gray-900 mt-6 mb-2">Choose your username</h1>
-          <p className="text-sm text-gray-500">This becomes your public page URL.</p>
-        </div>
+        <div className="mb-12"><Logo /></div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-          {error && (
-            <div className="mb-4 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
-              {error}
-            </div>
-          )}
+        <h1 className="font-display italic text-4xl text-brand-text mb-2">
+          Pick your username.
+        </h1>
+        <p className="text-brand-muted text-sm mb-10">
+          This becomes your public page URL. You can't change it later.
+        </p>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-700">Username</label>
-              <div className="flex rounded-lg border border-gray-200 overflow-hidden focus-within:border-gray-900 transition-colors">
-                <span className="flex items-center px-3 text-sm text-gray-400 bg-gray-50 border-r border-gray-200 select-none">
-                  tap.zakapedia.in/
-                </span>
+        {error && (
+          <div className="mb-5 text-sm text-red-400 bg-red-950/40 border border-red-900/50 rounded-xl px-4 py-3">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-medium text-brand-muted">Username</label>
+            <div className="flex rounded-xl border border-brand-border overflow-hidden focus-within:border-brand-muted transition-colors bg-brand-surface">
+              <span className="flex items-center px-3 text-xs text-brand-faint border-r border-brand-border select-none whitespace-nowrap">
+                tap.zakapedia.in/
+              </span>
+              <div className="flex-1 flex items-center">
                 <input
                   value={username}
-                  onChange={(e) => {
-                    setUsername(e.target.value.toLowerCase())
-                    setAvailable(null)
-                  }}
+                  onChange={(e) => { setUsername(e.target.value.toLowerCase()); setAvailable(null) }}
                   onBlur={checkAvailability}
                   placeholder="yourname"
-                  className="flex-1 px-3 py-2 text-sm focus:outline-none bg-white"
+                  className="flex-1 px-3 py-3 text-sm bg-transparent text-brand-text placeholder:text-brand-faint focus:outline-none"
                   maxLength={30}
                   autoComplete="off"
                   autoCapitalize="none"
                   spellCheck={false}
                 />
                 {checking && (
-                  <span className="flex items-center pr-3">
-                    <span className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                  <span className="pr-3">
+                    <span className="w-4 h-4 border-2 border-brand-border border-t-brand-muted rounded-full animate-spin block" />
                   </span>
                 )}
               </div>
-              {h && (
-                <p className={`text-xs ${h.ok ? 'text-green-600' : 'text-red-500'}`}>
-                  {h.text}
-                </p>
-              )}
             </div>
+            {h && (
+              <p className={`text-xs ${h.ok ? 'text-green-400' : 'text-red-400'}`}>{h.text}</p>
+            )}
+          </div>
 
-            <button
-              type="submit"
-              disabled={!available || saving || !isValid}
-              className="w-full bg-gray-900 text-white text-sm font-medium py-2.5 rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
-            >
-              {saving && (
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              )}
-              Claim @{lowered || 'username'}
-            </button>
-          </form>
-        </div>
+          <button
+            type="submit"
+            disabled={!available || saving || !isValid}
+            className="w-full mt-2 bg-brand-gold text-brand-dark text-sm font-bold py-3 rounded-xl hover:bg-brand-gold-light transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+          >
+            {saving && <span className="w-4 h-4 border-2 border-brand-dark border-t-transparent rounded-full animate-spin" />}
+            Claim @{lowered || 'username'}
+          </button>
+        </form>
       </div>
     </div>
   )

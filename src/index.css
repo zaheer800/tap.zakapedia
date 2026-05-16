@@ -3,9 +3,7 @@
 @tailwind utilities;
 
 @layer base {
-  * {
-    box-sizing: border-box;
-  }
+  * { box-sizing: border-box; }
 
   html {
     -webkit-font-smoothing: antialiased;
@@ -13,7 +11,9 @@
   }
 
   body {
-    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+    background: #fff;
+    color: #111;
   }
 }
 
@@ -22,7 +22,28 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+
+  /* Fraunces ligature + optical sizing */
+  .font-display {
+    font-optical-sizing: auto;
+    font-variant-ligatures: common-ligatures;
   }
+}
+
+@keyframes nfcPulse {
+  0%   { transform: scale(0.5); opacity: 0.7; }
+  100% { transform: scale(2.6); opacity: 0;   }
+}
+
+/* Grain texture overlay — gives the dark bg a tactile, premium feel */
+.grain-overlay {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  opacity: 0.032;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.78' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 300px 300px;
 }

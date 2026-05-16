@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { Search } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { trackPageView } from '../utils/trackEvent'
 import { Editorial } from '../components/themes/Editorial'
@@ -11,6 +12,7 @@ export function PublicProfile() {
   const { username } = useParams<{ username: string }>()
   const [page, setPage] = useState<Page | null>(null)
   const [links, setLinks] = useState<Link[]>([])
+  const [userTypes, setUserTypes] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
 
@@ -22,7 +24,7 @@ export function PublicProfile() {
     // Look up the user by username
     const { data: tapUser } = await supabase
       .from('users')
-      .select('id')
+      .select('id, user_type')
       .eq('username', uname.toLowerCase())
       .maybeSingle()
 
@@ -54,6 +56,8 @@ export function PublicProfile() {
 
     setPage(pageData as Page)
     setLinks((linksData ?? []) as Link[])
+    const rawType = (tapUser as { id: string; user_type?: string }).user_type ?? '[]'
+    try { setUserTypes(JSON.parse(rawType)) } catch { setUserTypes(rawType ? [rawType] : []) }
     setLoading(false)
 
     // Track page view (fire-and-forget)
@@ -71,7 +75,7 @@ export function PublicProfile() {
   if (notFound || !page) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4 text-center">
-        <p className="text-4xl mb-4">🔍</p>
+        <Search className="w-10 h-10 text-gray-300 mx-auto mb-4" />
         <h1 className="text-xl font-semibold text-gray-900 mb-2">Page not found</h1>
         <p className="text-sm text-gray-500 mb-6">
           {username
@@ -91,5 +95,5 @@ export function PublicProfile() {
   const ThemeComponent =
     page.theme === 'editorial' ? Editorial : page.theme === 'expressive' ? Expressive : Minimal
 
-  return <ThemeComponent page={page} links={links} />
+  return <ThemeComponent page={page} links={links} userTypes={userTypes} />
 }

@@ -3,7 +3,18 @@
     "allow": [
       "Bash(npm install *)",
       "Bash(npm run *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/)",
+      "Bash(npx playwright *)",
+      "Bash(node check-marquee.mjs)",
+      "mcp__plugin_supabase_supabase__list_tables",
+      "mcp__plugin_supabase_supabase__execute_sql",
+      "Skill(frontend-design:frontend-design)",
+      "Skill(frontend-design)"
     ]
+  },
+  "enabledPlugins": {
+    "supabase@claude-plugins-official": true
   }
 }

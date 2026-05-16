@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { Logo } from '../components/Logo'
 
 export function Login() {
-  const { signIn, signInWithGoogle, tapUser } = useAuth()
+  const { signIn, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
 
   const [email, setEmail] = useState('')
@@ -17,8 +18,7 @@ export function Login() {
     setLoading(true)
     try {
       await signIn(email, password)
-      // AuthContext will update tapUser; redirect after a tick
-      setTimeout(() => navigate(tapUser ? '/dashboard' : '/onboarding'), 100)
+      navigate('/auth')
     } catch (err) {
       setError((err as Error).message ?? 'Sign-in failed.')
     } finally {
@@ -36,85 +36,115 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-sm">
-        <Link to="/" className="block text-center mb-8">
-          <span className="text-xl font-bold text-gray-900">Tap</span>
-        </Link>
+    <div className="min-h-screen bg-brand-dark text-brand-text flex">
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-          <h1 className="text-xl font-semibold text-gray-900 mb-6">Sign in</h1>
+      {/* Left brand panel */}
+      <div className="hidden lg:flex w-[45%] flex-col justify-between border-r border-brand-border p-12">
+        <Logo linkTo="/" />
+
+        <div>
+          <h1 className="font-display italic text-[72px] leading-[0.9] text-brand-text mb-6">
+            Welcome<br />back.
+          </h1>
+          <p className="text-brand-faint text-lg leading-relaxed max-w-xs">
+            Your page is waiting. Sign in to edit, view analytics, or order your NFC card.
+          </p>
+        </div>
+
+        <p className="text-xs text-brand-faint">
+          tap.zakapedia.in
+        </p>
+      </div>
+
+      {/* Right form panel */}
+      <div className="flex-1 flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-sm">
+          {/* Mobile logo */}
+          <div className="lg:hidden mb-10"><Logo linkTo="/" /></div>
+
+          <h2 className="text-xl font-semibold text-brand-text mb-1">Sign in</h2>
+          <p className="text-sm text-brand-muted mb-8">
+            New here?{' '}
+            <Link to="/signup" className="text-brand-gold hover:text-brand-gold-light transition-colors">
+              Create a free page
+            </Link>
+          </p>
 
           {error && (
-            <div className="mb-4 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+            <div className="mb-5 text-sm text-red-400 bg-red-950/40 border border-red-900/50 rounded-xl px-4 py-3">
               {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-700">Email</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none transition-colors"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-700">Password</label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none transition-colors"
-              />
-            </div>
+            <Field
+              label="Email"
+              type="email"
+              value={email}
+              onChange={setEmail}
+              placeholder="you@example.com"
+            />
+            <Field
+              label="Password"
+              type="password"
+              value={password}
+              onChange={setPassword}
+              placeholder="••••••••"
+            />
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gray-900 text-white text-sm font-medium py-2.5 rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full mt-1 bg-brand-gold text-brand-dark text-sm font-bold py-3 rounded-xl hover:bg-brand-gold-light transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {loading && (
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              )}
+              {loading && <Spinner />}
               Sign in
             </button>
           </form>
 
-          <div className="relative my-5">
+          <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-100" />
+              <div className="w-full border-t border-brand-border" />
             </div>
             <div className="relative text-center">
-              <span className="bg-white px-3 text-xs text-gray-400">or</span>
+              <span className="bg-brand-dark px-3 text-xs text-brand-faint">or</span>
             </div>
           </div>
 
           <button
             onClick={handleGoogle}
-            className="w-full flex items-center justify-center gap-3 border border-gray-200 text-sm text-gray-700 font-medium py-2.5 rounded-lg hover:bg-gray-50 transition-colors"
+            className="w-full flex items-center justify-center gap-3 border border-brand-border text-brand-muted text-sm font-medium py-3 rounded-xl hover:border-brand-faint hover:text-brand-text transition-colors"
           >
             <GoogleIcon />
             Continue with Google
           </button>
         </div>
-
-        <p className="text-center text-sm text-gray-500 mt-4">
-          Don&apos;t have an account?{' '}
-          <Link to="/signup" className="font-medium text-gray-900 hover:underline">
-            Sign up free
-          </Link>
-        </p>
       </div>
     </div>
   )
+}
+
+function Field({ label, type, value, onChange, placeholder }: {
+  label: string; type: string; value: string
+  onChange: (v: string) => void; placeholder: string
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs font-medium text-brand-muted">{label}</label>
+      <input
+        type={type}
+        required
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full bg-brand-surface border border-brand-border rounded-xl px-4 py-3 text-sm text-brand-text placeholder:text-brand-faint focus:border-brand-muted focus:outline-none transition-colors"
+      />
+    </div>
+  )
+}
+
+function Spinner() {
+  return <span className="w-4 h-4 border-2 border-brand-dark border-t-transparent rounded-full animate-spin" />
 }
 
 function GoogleIcon() {

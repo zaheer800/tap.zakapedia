@@ -16,7 +16,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Pencil, Trash2, Check, X } from 'lucide-react'
+import { GripVertical, Pencil, Trash2, Check, X, Link2 } from 'lucide-react'
 import type { Link } from '../../types'
 
 interface Props {
@@ -64,9 +64,9 @@ export function LinkList({ links, onAdd, onUpdate, onDelete, onReorder }: Props)
       <button
         onClick={handleAdd}
         disabled={adding}
-        className="mt-1 flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors disabled:opacity-50 py-2"
+        className="mt-1 flex items-center gap-2 text-sm text-brand-muted hover:text-brand-text transition-colors disabled:opacity-50 py-2"
       >
-        <span className="w-5 h-5 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-xs">
+        <span className="w-5 h-5 rounded-full border-2 border-dashed border-brand-border flex items-center justify-center text-xs">
           +
         </span>
         Add link
@@ -119,20 +119,20 @@ function SortableLink({
 
   if (editing) {
     return (
-      <div ref={setNodeRef} style={style} className="bg-gray-50 rounded-xl p-3 border border-gray-200">
+      <div ref={setNodeRef} style={style} className="bg-brand-dark rounded-xl p-3 border border-brand-border">
         <div className="flex gap-2 mb-2">
           <input
             value={icon}
             onChange={(e) => setIcon(e.target.value)}
-            placeholder="🔗"
-            className="w-10 text-center rounded-lg border border-gray-200 bg-white px-1 py-1.5 text-sm focus:outline-none focus:border-gray-900"
+            placeholder="icon"
+            className="w-10 text-center rounded-lg border border-brand-border bg-brand-surface px-1 py-1.5 text-sm text-brand-text focus:outline-none focus:border-brand-muted placeholder:text-brand-faint"
             maxLength={2}
           />
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Link title"
-            className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:border-gray-900"
+            className="flex-1 rounded-lg border border-brand-border bg-brand-surface px-3 py-1.5 text-sm text-brand-text focus:outline-none focus:border-brand-muted placeholder:text-brand-faint"
             autoFocus
           />
         </div>
@@ -140,14 +140,14 @@ function SortableLink({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://..."
-          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:border-gray-900 mb-2"
+          className="w-full rounded-lg border border-brand-border bg-brand-surface px-3 py-1.5 text-sm text-brand-text focus:outline-none focus:border-brand-muted placeholder:text-brand-faint mb-2"
           type="url"
         />
         <div className="flex gap-2 justify-end">
-          <button onClick={cancel} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-200 transition-colors">
+          <button onClick={cancel} className="p-1.5 rounded-lg text-brand-muted hover:bg-brand-border transition-colors">
             <X className="w-4 h-4" />
           </button>
-          <button onClick={save} className="p-1.5 rounded-lg text-white bg-gray-900 hover:bg-gray-700 transition-colors">
+          <button onClick={save} className="p-1.5 rounded-lg text-brand-dark bg-brand-gold hover:bg-brand-gold-light transition-colors">
             <Check className="w-4 h-4" />
           </button>
         </div>
@@ -159,34 +159,37 @@ function SortableLink({
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border border-gray-100 group"
+      className="flex items-center gap-2 bg-brand-surface rounded-xl px-3 py-2.5 border border-brand-border group"
     >
       <button
         {...attributes}
         {...listeners}
-        className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing p-1 -ml-1 touch-none"
+        className="text-brand-border hover:text-brand-faint cursor-grab active:cursor-grabbing p-1 -ml-1 touch-none"
       >
         <GripVertical className="w-4 h-4" />
       </button>
 
-      <span className="text-lg leading-none">{link.icon || '🔗'}</span>
+      {link.icon
+        ? <span className="text-lg leading-none flex-shrink-0">{link.icon}</span>
+        : <Link2 className="w-4 h-4 flex-shrink-0 text-brand-faint" />
+      }
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900 truncate">{link.title}</p>
-        <p className="text-xs text-gray-400 truncate">{link.url}</p>
+        <p className="text-sm font-medium text-brand-text truncate">{link.title}</p>
+        <p className="text-xs text-brand-faint truncate">{link.url}</p>
       </div>
 
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={() => setEditing(true)}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+          className="p-1.5 rounded-lg text-brand-faint hover:text-brand-muted hover:bg-brand-border/50 transition-colors"
         >
           <Pencil className="w-3.5 h-3.5" />
         </button>
         <button
           onClick={handleDelete}
           disabled={deleting}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+          className="p-1.5 rounded-lg text-brand-faint hover:text-red-400 hover:bg-red-950/30 transition-colors"
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>

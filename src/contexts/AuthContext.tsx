@@ -37,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    // Initial session — sets loading=false only after tapUser is fetched
     supabase.auth.getSession().then(({ data }) => {
       const u = data.session?.user ?? null
       setUser(u)
@@ -44,11 +45,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       else setLoading(false)
     })
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      // INITIAL_SESSION is already handled by getSession above; skip to avoid double-fetch
+      if (event === 'INITIAL_SESSION') return
+
       const u = session?.user ?? null
       setUser(u)
-      if (u) fetchTapUser(u.id)
-      else setTapUser(null)
+      if (u) {
+        // Keep loading=true while we fetch tapUser so Dashboard doesn't
+        // prematurely redirect to /onboarding before the fetch completes
+        setLoading(true)
+        fetchTapUser(u.id).finally(() => setLoading(false))
+      } else {
+        setTapUser(null)
+        setLoading(false)
+      }
     })
 
     return () => listener.subscription.unsubscribe()
@@ -67,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signInWithGoogle() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/onboarding` },
+      options: { redirectTo: `${window.location.origin}/auth` },
     })
     if (error) throw error
   }

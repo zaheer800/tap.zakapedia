@@ -104,7 +104,7 @@ CREATE TABLE tap.nfc_orders (
   quantity             INTEGER NOT NULL DEFAULT 1,
   status               TEXT NOT NULL DEFAULT 'placed'
                        CHECK (status IN ('placed', 'shipped', 'delivered')),
-  razorpay_payment_id  TEXT,
+  payment_reference  TEXT,
   created_at           TIMESTAMPTZ DEFAULT now()
 );
 
@@ -127,7 +127,7 @@ CREATE TABLE tap.visiting_card_orders (
   address              JSONB NOT NULL,
   status               TEXT NOT NULL DEFAULT 'placed'
                        CHECK (status IN ('placed', 'printing', 'shipped', 'delivered')),
-  razorpay_payment_id  TEXT,
+  payment_reference  TEXT,
   created_at           TIMESTAMPTZ DEFAULT now()
 );
 

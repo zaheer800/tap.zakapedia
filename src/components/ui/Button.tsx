@@ -8,9 +8,9 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants = {
-  primary:   'bg-gray-900 text-white hover:bg-gray-700 disabled:bg-gray-300',
-  secondary: 'bg-white text-gray-900 border border-gray-200 hover:bg-gray-50 disabled:opacity-50',
-  ghost:     'text-gray-600 hover:bg-gray-100 disabled:opacity-50',
+  primary:   'bg-brand-gold text-brand-dark hover:bg-brand-gold-light disabled:opacity-50',
+  secondary: 'bg-brand-surface text-brand-text border border-brand-border hover:border-brand-muted disabled:opacity-50',
+  ghost:     'text-brand-faint hover:text-brand-text disabled:opacity-50',
   danger:    'bg-red-600 text-white hover:bg-red-700 disabled:opacity-50',
 }
 
@@ -34,9 +34,9 @@ export function Button({
       {...props}
       disabled={disabled || loading}
       className={`
-        inline-flex items-center justify-center gap-2 font-medium rounded-lg
+        inline-flex items-center justify-center gap-2 font-semibold rounded-xl
         transition-colors duration-150 focus-visible:outline-none
-        focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2
+        focus-visible:ring-2 focus-visible:ring-brand-gold focus-visible:ring-offset-2 focus-visible:ring-offset-brand-dark
         ${variants[variant]} ${sizes[size]} ${className}
       `}
     >

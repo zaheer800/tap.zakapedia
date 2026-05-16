@@ -93,11 +93,19 @@ Saleem, 48, runs a meat shop in Tarnaka, Hyderabad. Has a WhatsApp number, Googl
 
 ## 5. Business Model
 
-Tap is **100% free** for all users. No plans, no tiers, no locked features.
+Tap is **free** for all users at its core. No subscription plans, no locked themes, no paywalls on the builder.
 
-**Revenue sources:** Physical product orders only — NFC cards and printed visiting cards. The software — builder, themes, analytics, published page — is free forever.
+**Revenue sources:**
 
-**Growth loop:** Free page → shared on WhatsApp → someone asks "how did you make this?" → they sign up free → eventually order a card or visiting cards.
+| Source | Model |
+|---|---|
+| NFC Cards | One-time order, manual fulfillment, ₹199–₹299/card |
+| Visiting Cards | One-time order per 100 cards, manual fulfillment |
+| AI Credits | Pay-per-use credits for AI profile generation (₹49 / 5 credits, ₹149 / 20 credits) |
+
+The software — builder, themes, analytics, published page — is **free forever**. AI features are optional premium add-ons, not a gate on core functionality. New users receive **3 free AI credits** on signup to experience the feature without payment friction.
+
+**Growth loop:** Free page → shared on WhatsApp → someone asks "how did you make this?" → they sign up free → use AI credits to build their profile → order a card or visiting cards.
 
 ---
 
@@ -116,6 +124,8 @@ Tap is **100% free** for all users. No plans, no tiers, no locked features.
 | Visiting Card Order | Choose template or upload design, auto-filled from profile, QR code on back, Razorpay payment | P1 | ✓ |
 | Accent Colour Pick | One accent colour choice within theme palette | P1 | ✓ |
 | WhatsApp Share | One-tap share button with page URL | P1 | ✓ |
+| AI Profile Builder | Describe yourself → AI generates bio, picks theme + accent, suggests links. Costs 1 AI credit. 3 free credits on signup. | P1 | ✓ |
+| AI Credits System | Credit balance display in dashboard, purchase via UPI (manual fulfillment v1), 3 free credits on signup trigger | P1 | ✓ |
 | Multiple Pages | One user, multiple link pages | P2 | – |
 | Custom Domain | User brings own domain | P2 | – |
 | Scheduled Links | Links that appear/disappear on a schedule | P2 | – |
@@ -217,7 +227,93 @@ visiting_card_orders — id, user_id, page_id, template (editorial/minimal/expre
                        status, razorpay_payment_id, created_at
 ```
 
-## 10. User Analytics Dashboard
+## 10. AI Profile Builder
+
+### 10.1 Overview
+
+The AI Profile Builder lets users describe themselves in plain language and have AI generate their entire profile — bio, theme, accent colour, and suggested links — in one shot. It removes the blank-page problem for new users and helps anyone who struggles to write their own bio.
+
+This is a **paid feature** powered by OpenRouter. Every generation costs 1 AI credit. New users receive 3 free credits on signup; additional credits are purchased via UPI.
+
+### 10.2 User Flow
+
+1. User opens dashboard → sees **"Build with AI"** banner and credit balance in header
+2. Clicks → modal opens with a text area: *"Describe yourself or your brand"*
+3. Selects tone: Professional / Creative / Casual
+4. Clicks **Generate** (1 credit deducted)
+5. AI returns: polished bio, recommended theme + accent colour, 3–5 suggested platform links
+6. User reviews the preview and applies: **Apply Everything**, **Apply Bio Only**, **Apply Design Only**, **Add Links**, or **Regenerate** (costs another credit)
+7. Changes populate the builder fields and auto-save
+
+### 10.3 AI Output Format
+
+```json
+{
+  "bio": "Freelance UI designer from Hyderabad. I help startups find their visual voice.",
+  "theme": "minimal",
+  "accent_color": "#3B82F6",
+  "suggested_links": [
+    { "title": "My Portfolio", "url": "https://behance.net/yourhandle", "icon": "" },
+    { "title": "LinkedIn",     "url": "https://linkedin.com/in/",      "icon": "" },
+    { "title": "Dribbble",     "url": "https://dribbble.com/",         "icon": "" }
+  ]
+}
+```
+
+### 10.4 Credits System
+
+| Package | Price | Credits |
+|---|---|---|
+| Signup bonus | Free | 3 credits |
+| Starter | ₹49 | 5 credits |
+| Value | ₹149 | 20 credits |
+
+**Credit lifecycle:**
+- Credits are deducted atomically server-side before the AI call
+- If OpenRouter fails or returns an invalid response, the credit is automatically refunded
+- Credit balance is always visible in the dashboard header
+- Credits do not expire
+
+**Purchase flow (MVP — manual fulfillment):**
+1. User clicks "Buy Credits" → modal with two package options
+2. Pays via UPI (UPI ID displayed + QR code)
+3. Submits transaction ID (UTR number) — same pattern as NFC card orders
+4. Credits added manually within 2 hours of payment verification
+
+### 10.5 Security Architecture
+
+The OpenRouter API key **never appears in frontend code**. All AI calls are proxied through a **Supabase Edge Function** (`generate-profile`) that:
+
+1. Verifies the user's Supabase JWT
+2. Deducts 1 credit via an atomic Postgres stored procedure (`tap.spend_ai_credit`)
+3. Calls OpenRouter API (`google/gemini-flash-1.5` — fast, cheap, JSON-capable)
+4. Validates and sanitises the AI response
+5. Refunds the credit if the AI call fails
+6. Returns the generated profile data to the client
+
+The `OPENROUTER_API_KEY` is stored exclusively in Supabase Edge Function secrets (never in `.env`, never with a `VITE_` prefix).
+
+### 10.6 Data Model
+
+```
+tap.ai_credits                — user_id (PK), balance INTEGER CHECK (>= 0), updated_at
+tap.ai_credit_transactions    — id, user_id, amount, reason, created_at  [optional audit log]
+tap.credit_purchase_requests  — id, user_id, package_credits, amount_inr, utr_number, status, created_at
+```
+
+**Signup credits trigger:** A Postgres trigger on `tap.users INSERT` automatically inserts a row into `tap.ai_credits` with `balance = 3` for every new user. Zero frontend change required — works for email and Google sign-in equally.
+
+### 10.7 Tone Guide (Prompt Design)
+
+| Tone | Description | Best for |
+|---|---|---|
+| Professional | Crisp, business-forward, no fluff | Freelancers, consultants, job seekers |
+| Creative | Expressive, slightly informal, personality-forward | Creators, artists, photographers |
+| Casual | Conversational, warm, approachable | Local businesses, community figures |
+
+---
+
+## 11. User Analytics Dashboard
 
 One screen. Numbers that make them smile and tell them what's working.
 
@@ -249,7 +345,7 @@ One screen. Numbers that make them smile and tell them what's working.
 
 ---
 
-## 11. Success Metrics
+## 12. Success Metrics
 
 **Primary metric:** Link click-through rate. If visitors are clicking links, the page is working.
 
@@ -265,10 +361,13 @@ One screen. Numbers that make them smile and tell them what's working.
 | Return to Builder | Users who update page after first publish | > 40% |
 | Traffic via NFC | % of page views with `?ref=nfc` | Tracked |
 | WhatsApp Share Rate | Users who tap the share button | > 25% |
+| AI Generation Rate | % of new users who use at least 1 AI credit | > 40% |
+| AI Credit Purchase Rate | % of users who buy credits after free credits run out | > 15% |
+| AI to Publish Rate | % of AI generations where user publishes the result | > 70% |
 
 ---
 
-## 12. Technical Stack
+## 13. Technical Stack
 
 | Layer | Choice |
 |---|---|
@@ -276,7 +375,8 @@ One screen. Numbers that make them smile and tell them what's working.
 | Styling | Tailwind CSS + custom theme tokens |
 | Backend / DB | Supabase — shared Zakapedia instance, `tap` schema |
 | Hosting | Vercel (`tap.zakapedia.in` subdomain) |
-| Payments | Razorpay (NFC + visiting card orders) |
+| Payments | Razorpay (NFC + visiting card orders); UPI manual fulfillment for AI credits |
+| AI Gateway | OpenRouter (`google/gemini-flash-1.5`) via Supabase Edge Function proxy |
 | Analytics | Custom — Supabase tables, no third-party |
 | NFC Write Tool | NFC Tools app (manual fulfillment v1) |
 | Repo | GitHub, deployed via Vercel CI |
@@ -303,18 +403,20 @@ iplpredictor.*     ← IPL Predictor tables
 ### 12.2 Data Model (Key Tables)
 
 ```
-tap.users                — id (references auth.users), username, email, created_at
-tap.pages                — id, user_id, theme, accent_color, name, bio, avatar_url, published
-tap.links                — id, page_id, title, url, icon, position, created_at
-tap.page_views           — id, page_id, timestamp, source
-tap.link_clicks          — id, link_id, page_id, timestamp, source
-tap.nfc_orders           — id, user_id, page_id, name_on_card, address, quantity, status, razorpay_payment_id, created_at
-tap.visiting_card_orders — id, user_id, page_id, template, finish, quantity, design_file_url, address, status, razorpay_payment_id, created_at
+tap.users                    — id (references auth.users), username, email, user_type, created_at
+tap.pages                    — id, user_id, theme, accent_color, name, bio, avatar_url, banner_url, published
+tap.links                    — id, page_id, title, url, icon, position, created_at
+tap.page_views               — id, page_id, timestamp, source
+tap.link_clicks              — id, link_id, page_id, timestamp, source
+tap.nfc_orders               — id, user_id, page_id, name_on_card, address, quantity, status, payment_reference, created_at
+tap.visiting_card_orders     — id, user_id, page_id, template, finish, quantity, design_file_url, address, status, payment_reference, created_at
+tap.ai_credits               — user_id (PK), balance INTEGER CHECK (>= 0), updated_at
+tap.credit_purchase_requests — id, user_id, package_credits, amount_inr, utr_number, status, created_at
 ```
 
 ---
 
-## 13. Out of Scope (MVP)
+## 14. Out of Scope (MVP)
 
 - Multiple pages per user
 - Custom domain support
@@ -328,7 +430,7 @@ tap.visiting_card_orders — id, user_id, page_id, template, finish, quantity, d
 
 ---
 
-## 14. Risks & Mitigations
+## 15. Risks & Mitigations
 
 | Risk | Mitigation |
 |---|---|
@@ -338,13 +440,18 @@ tap.visiting_card_orders — id, user_id, page_id, template, finish, quantity, d
 | Print vendor dependency | Identify 2 print vendors in Hyderabad before launch; never rely on just one |
 | Supabase free tier limits | Monitor usage; upgrade before hitting limits (~500 active pages is safe) |
 | Low organic discovery | Zakapedia audience as initial seed; WhatsApp sharing built-in for viral loop |
+| OpenRouter API key exposure | Key stored only in Supabase Edge Function secrets; never in frontend bundle |
+| AI credit abuse / fraud | Atomic credit deduction via stored procedure; balance can never go below 0 |
+| OpenRouter downtime | Credit auto-refunded on failure; user sees clear error message |
+| AI generates bad output | Output validated + sanitised server-side; theme and accent restricted to allowlist |
+| Manual credit fulfillment bottleneck | UTR-based verification; cap daily manual credit additions; automate with Razorpay webhooks in v2 |
 
 ---
 
-## 15. Roadmap
+## 16. Roadmap
 
 ### v1.0 — MVP (Q2 2026)
-Auth, builder, 3 themes, published pages, analytics dashboard, NFC card orders, visiting card orders
+Auth, builder, 3 themes, published pages, analytics dashboard, NFC card orders, visiting card orders, **AI Profile Builder with credits system**
 
 ### v1.1 — Post-Launch
 - Tamil and Telugu UI localisation
@@ -352,6 +459,8 @@ Auth, builder, 3 themes, published pages, analytics dashboard, NFC card orders, 
 - WhatsApp Business API for order notifications
 - Embedded Spotify / YouTube preview in links
 - Automated visiting card preview (render card design in browser before ordering)
+- Razorpay webhook integration for automated AI credit fulfillment (replaces manual UTR process)
+- AI "Refresh Bio" — regenerate just the bio without touching theme/links
 
 ### v2.0 — Growth
 - Multiple pages per user
@@ -360,10 +469,11 @@ Auth, builder, 3 themes, published pages, analytics dashboard, NFC card orders, 
 - Automated print fulfillment for visiting cards
 - Agency / white-label accounts
 - Scheduled links
+- AI chat widget on public profile — visitors ask questions, AI answers as the profile owner
 
 ---
 
-## 16. Open Questions
+## 17. Open Questions
 
 - **Pricing model** — ~~resolved~~: product is entirely free; revenue from NFC cards and visiting card orders only
 - **NFC card pricing** — ₹199 or ₹299 per card? Includes shipping?
@@ -373,6 +483,10 @@ Auth, builder, 3 themes, published pages, analytics dashboard, NFC card orders, 
 - **Avatar storage** — Supabase storage bucket or Cloudinary? Decide before build.
 - **Analytics retention** — how long to keep raw event data? 90 days recommended for MVP.
 - **Visiting card design preview** — static PDF preview v1, or live in-browser render? Static is simpler for MVP.
+- **AI credit pricing** — ₹49 / 5 credits and ₹149 / 20 credits proposed; validate willingness-to-pay before hardcoding.
+- **AI model choice** — `google/gemini-flash-1.5` proposed; benchmark against `anthropic/claude-3-haiku` on bio quality before launch.
+- **Free credit count** — 3 free credits on signup proposed; enough to experience the feature but creates purchase pressure quickly.
+- **AI credits expiry** — should unused credits expire? No expiry for MVP (simpler, builds goodwill).
 
 ---
 

@@ -1,6 +1,6 @@
 export type Theme = 'editorial' | 'minimal' | 'expressive'
-export type OrderStatus = 'placed' | 'shipped' | 'delivered'
-export type PrintingStatus = 'placed' | 'printing' | 'shipped' | 'delivered'
+export type OrderStatus = 'placed' | 'printing' | 'shipped' | 'delivered' | 'cancelled'
+export type PrintingStatus = 'placed' | 'printing' | 'shipped' | 'delivered' | 'cancelled'
 export type VisitingCardTemplate = 'editorial' | 'minimal' | 'expressive' | 'upload'
 export type Finish = 'matte' | 'glossy'
 
@@ -9,6 +9,7 @@ export interface TapUser {
   username: string
   email: string
   created_at: string
+  user_type?: string
 }
 
 export interface Page {
@@ -19,6 +20,7 @@ export interface Page {
   name: string
   bio: string
   avatar_url: string | null
+  banner_url?: string | null
   published: boolean
 }
 
@@ -50,7 +52,27 @@ export interface NFCOrder {
   address: ShippingAddress
   quantity: number
   status: OrderStatus
-  razorpay_payment_id: string | null
+  payment_reference: string | null
+  created_at: string
+}
+
+export interface ContactMessage {
+  id: string
+  page_id: string
+  sender_name: string
+  message: string
+  read: boolean
+  created_at: string
+}
+
+export interface OrderMessage {
+  id: string
+  user_id: string
+  order_id: string | null
+  order_type: 'nfc' | 'visiting_card' | 'support'
+  message: string
+  from_admin: boolean
+  read: boolean
   created_at: string
 }
 
@@ -64,6 +86,6 @@ export interface VisitingCardOrder {
   design_file_url: string | null
   address: ShippingAddress
   status: PrintingStatus
-  razorpay_payment_id: string | null
+  payment_reference: string | null
   created_at: string
 }
