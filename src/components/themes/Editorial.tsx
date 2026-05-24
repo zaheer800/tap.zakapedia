@@ -265,10 +265,18 @@ export function Editorial({ page, links, isPreview = false, userTypes = [] }: Pr
         )}
 
         {/* Footer */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 52 }}>
-          <div style={{ flex: 1, height: 1, backgroundColor: '#0E0E12' }} />
-          <span style={{ fontSize: 9, color: '#1C1C22', letterSpacing: '0.14em' }}>TAP.ZAKAPEDIA.IN</span>
-          <div style={{ flex: 1, height: 1, backgroundColor: '#0E0E12' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 52, marginBottom: 8 }}>
+          <div style={{ flex: 1, height: 1, backgroundColor: '#1C1C22' }} />
+          <a
+            href="https://tap.zakapedia.in"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => isPreview && e.preventDefault()}
+            style={{ fontSize: 11, color: '#555560', letterSpacing: '0.1em', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}
+          >
+            Made with Tap.Zakapedia.in
+          </a>
+          <div style={{ flex: 1, height: 1, backgroundColor: '#1C1C22' }} />
         </div>
       </div>
       <FloatingActions page={page} links={links} isPreview={isPreview} />

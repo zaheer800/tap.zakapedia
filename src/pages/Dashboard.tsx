@@ -5,9 +5,11 @@ import {
   CreditCard, Wifi, Camera, Copy, ExternalLink,
   Plus, ChevronDown, Check, ImageIcon,
   Palette, Code2, Briefcase, BookOpen, PenTool, Store, TrendingUp,
-  Eye, X, MessageSquare, Settings, XCircle, Package,
+  Eye, X, MessageSquare, Settings, XCircle, Package, Layout,
+  Zap, Sparkles, RefreshCw,
 } from 'lucide-react'
 import { Logo } from '../components/Logo'
+import { compressImage } from '../utils/compressImage'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useDebounce } from '../hooks/useDebounce'
@@ -19,15 +21,20 @@ import { Expressive } from '../components/themes/Expressive'
 import { AnalyticsDashboard } from '../components/analytics/AnalyticsDashboard'
 import { NFCOrderForm } from '../components/orders/NFCOrderForm'
 import { VisitingCardOrderForm } from '../components/orders/VisitingCardOrderForm'
-import type { Page, Link, Theme, ContactMessage, OrderMessage, NFCOrder, VisitingCardOrder } from '../types'
+import { SectionContentEditor } from '../components/portfolio/SectionContentEditor'
+import { ProductSectionEditor } from '../components/portfolio/ProductSectionEditor'
+import { SECTION_META } from '../constants/sectionMeta'
+import { generatePortfolio, rewriteBio } from '../services/ai'
+import type { Page, Link, Theme, Section, ContactMessage, OrderMessage, NFCOrder, VisitingCardOrder } from '../types'
 
-type Tab = 'build' | 'analytics' | 'nfc' | 'cards' | 'messages'
+type Tab = 'build' | 'portfolio' | 'analytics' | 'nfc' | 'cards' | 'messages'
 
 const TABS: { id: Tab; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'build',     label: 'Build',     Icon: Layers        },
+  { id: 'portfolio', label: 'Portfolio', Icon: Layout        },
   { id: 'analytics', label: 'Analytics', Icon: BarChart2     },
   { id: 'nfc',       label: 'NFC',       Icon: Wifi          },
-  { id: 'cards',     label: 'Cards',     Icon: CreditCard    },
+  // { id: 'cards', label: 'Cards', Icon: CreditCard },  // visiting cards — hidden until re-enabled
   { id: 'messages',  label: 'Inbox',     Icon: MessageSquare },
 ]
 
@@ -93,6 +100,14 @@ const QUICK_LINKS: { title: string; url: string; icon: string; Logo: () => React
     ),
   },
 ]
+
+const PROFILE_TO_USER_TYPE: Record<string, string> = {
+  creator: 'creator',
+  professional: 'business',
+  business: 'local',
+  service_pro: 'business',
+  speaker: 'creator',
+}
 
 const PROFESSION_THEMES: Record<string, { theme: Theme; accent: string }> = {
   creator:    { theme: 'editorial',  accent: '#F59E0B' },
@@ -181,6 +196,19 @@ export function Dashboard() {
   const [nfcOrders, setNfcOrders] = useState<NFCOrder[]>([])
   const [visitingOrders, setVisitingOrders] = useState<VisitingCardOrder[]>([])
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null)
+  const [credits, setCredits] = useState<number | null>(null)
+
+  // Portfolio tab state
+  const [sections, setSections] = useState<Section[]>([])
+  const [slugDraft, setSlugDraft] = useState('portfolio')
+  const [expandedSection, setExpandedSection] = useState<string | null>(null)
+  const [sectionEdits, setSectionEdits] = useState<Record<string, Record<string, string>>>({})
+  const [addSectionOpen, setAddSectionOpen] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState('')
+  const [generateSuccess, setGenerateSuccess] = useState(false)
+  const [bioRewriting, setBioRewriting] = useState(false)
+  const [bioRewriteError, setBioRewriteError] = useState('')
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
@@ -199,18 +227,23 @@ export function Dashboard() {
     const pageRes = await supabase.from('pages').select('*').eq('user_id', user.id).maybeSingle()
     if (pageRes.data) {
       setPage(pageRes.data as Page)
-      const [lr, mr, omr, nfcr, vcr] = await Promise.all([
+      setSlugDraft(pageRes.data.portfolio_slug ?? 'portfolio')
+      const [lr, mr, omr, nfcr, vcr, crr, sr] = await Promise.all([
         supabase.from('links').select('*').eq('page_id', pageRes.data.id).order('position'),
         supabase.from('contact_messages').select('*').eq('page_id', pageRes.data.id).order('created_at', { ascending: false }),
         supabase.from('order_messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
         supabase.from('nfc_orders').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
         supabase.from('visiting_card_orders').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('credits').select('balance').eq('user_id', user.id).maybeSingle(),
+        supabase.from('sections').select('*').eq('page_id', pageRes.data.id).order('position'),
       ])
       setLinks((lr.data ?? []) as Link[])
       setMessages((mr.data ?? []) as ContactMessage[])
       setOrderMessages((omr.data ?? []) as OrderMessage[])
       setNfcOrders((nfcr.data ?? []) as NFCOrder[])
       setVisitingOrders((vcr.data ?? []) as VisitingCardOrder[])
+      setCredits((crr.data as { balance: number } | null)?.balance ?? null)
+      setSections((sr.data ?? []) as Section[])
     }
     setLoading(false)
   }
@@ -247,6 +280,18 @@ export function Dashboard() {
     return () => { supabase.removeChannel(channel) }
   }, [user?.id, page?.id])
 
+  useEffect(() => {
+    if (!page || userTypes.length > 0) return
+    const mapped = PROFILE_TO_USER_TYPE[page.profile_type ?? '']
+    if (!mapped) return
+    const next = [mapped]
+    setUserTypes(next)
+    const serialized = JSON.stringify(next)
+    localStorage.setItem('tap_user_type', serialized)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    supabase.from('users').update({ user_type: serialized } as any).eq('id', user!.id)
+  }, [page?.id])
+
   const debouncedPage = useDebounce(page, 1500)
   const isMounted = useRef(false)
   useEffect(() => {
@@ -282,9 +327,9 @@ export function Dashboard() {
     const file = e.target.files?.[0]
     if (!file || !page || !user) return
     setAvatarUploading(true)
-    const ext = file.name.split('.').pop()
-    const path = `${user.id}/avatar.${ext}`
-    await supabase.storage.from('tap-avatars').upload(path, file, { upsert: true })
+    const compressed = await compressImage(file, 300, 300, 0.85)
+    const path = `${user.id}/avatar.jpg`
+    await supabase.storage.from('tap-avatars').upload(path, compressed, { upsert: true, contentType: 'image/jpeg' })
     const { data } = supabase.storage.from('tap-avatars').getPublicUrl(path)
     const avatarUrl = `${data.publicUrl}?t=${Date.now()}`
     await supabase.from('pages').update({ avatar_url: avatarUrl }).eq('id', page.id)
@@ -296,9 +341,9 @@ export function Dashboard() {
     const file = e.target.files?.[0]
     if (!file || !page || !user) return
     setBannerUploading(true)
-    const ext = file.name.split('.').pop()
-    const path = `${user.id}/banner.${ext}`
-    await supabase.storage.from('tap-avatars').upload(path, file, { upsert: true })
+    const compressed = await compressImage(file, 1200, 400, 0.82)
+    const path = `${user.id}/banner.jpg`
+    await supabase.storage.from('tap-avatars').upload(path, compressed, { upsert: true, contentType: 'image/jpeg' })
     const { data } = supabase.storage.from('tap-avatars').getPublicUrl(path)
     const bannerUrl = `${data.publicUrl}?t=${Date.now()}`
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -352,22 +397,178 @@ export function Dashboard() {
     window.open(`https://wa.me/?text=${encodeURIComponent(`Check out my brand page: https://tap.zakapedia.in/${tapUser.username}`)}`, '_blank')
   }
 
-  function handleUserTypeChange(type: string) {
-    setUserTypes((prev) => {
-      const isAdding = !prev.includes(type)
-      const next = isAdding ? [...prev, type] : prev.filter((t) => t !== type)
-      const serialized = JSON.stringify(next)
-      localStorage.setItem('tap_user_type', serialized)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      supabase.from('users').update({ user_type: serialized } as any).eq('id', user!.id)
-      // Suggest theme only when making the very first selection
-      if (isAdding && prev.length === 0 && PROFESSION_THEMES[type]) {
-        const { theme, accent } = PROFESSION_THEMES[type]
-        updatePage({ theme, accent_color: accent })
-      }
-      return next
-    })
+  async function handleUserTypeChange(type: string) {
+    const isAdding = !userTypes.includes(type)
+    const next = isAdding ? [...userTypes, type] : userTypes.filter((t) => t !== type)
+    const serialized = JSON.stringify(next)
+    setUserTypes(next)
+    localStorage.setItem('tap_user_type', serialized)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await supabase.from('users').update({ user_type: serialized } as any).eq('id', user!.id)
+    if (isAdding && userTypes.length === 0 && PROFESSION_THEMES[type]) {
+      const { theme, accent } = PROFESSION_THEMES[type]
+      updatePage({ theme, accent_color: accent })
+    }
   }
+
+  // ── Portfolio helpers ───────────────────────────────────────────────────────
+
+  async function saveSlug() {
+    const clean = slugDraft.trim().toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40)
+    if (!clean || clean === (page?.portfolio_slug ?? 'portfolio')) return
+    setSlugDraft(clean)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await supabase.from('pages').update({ portfolio_slug: clean } as any).eq('id', page!.id)
+    setPage(prev => prev ? { ...prev, portfolio_slug: clean } : prev)
+  }
+
+  async function saveSectionContent(section: Section, edits: Record<string, string>) {
+    if (!Object.keys(edits).length) return
+    const merged = { ...section.content as Record<string, string>, ...edits }
+    await supabase.from('sections').update({ content: merged }).eq('id', section.id)
+    setSections(prev => prev.map(s => s.id === section.id ? { ...s, content: merged } : s))
+    setSectionEdits(prev => { const next = { ...prev }; delete next[section.id]; return next })
+  }
+
+  async function handleAddSection(type: string) {
+    if (!page) return
+    const position = sections.length
+    const { data } = await supabase
+      .from('sections')
+      .insert({ page_id: page.id, type, position, content: {} })
+      .select()
+      .single()
+    if (data) {
+      setSections(prev => [...prev, data as Section])
+      setExpandedSection(data.id)
+    }
+    setAddSectionOpen(false)
+  }
+
+  function extractWhatsAppNumber(): string {
+    const waLink = links.find(l => {
+      const url = l.url.toLowerCase()
+      const title = l.title.toLowerCase()
+      return url.includes('wa.me') || url.includes('whatsapp.com') || title === 'whatsapp'
+    })
+    if (!waLink) return ''
+    try {
+      const url = new URL(waLink.url)
+      const num = url.pathname.replace(/^\//, '').split('?')[0]
+      return num ? `+${num.replace(/^\+/, '')}` : ''
+    } catch {
+      return ''
+    }
+  }
+
+  function handleExpandSection(section: Section) {
+    const isExpanded = expandedSection === section.id
+    if (!isExpanded) {
+      const edits = sectionEdits[section.id] ?? {}
+      const content = { ...section.content as Record<string, string>, ...edits }
+      if (section.type === 'contact' && !content.phone) {
+        const num = extractWhatsAppNumber()
+        if (num) setSectionEdits(prev => ({ ...prev, [section.id]: { ...(prev[section.id] ?? {}), phone: num } }))
+      }
+      if ((section.type === 'whatsapp_order' || section.type === 'book_appointment') && !content.number) {
+        const num = extractWhatsAppNumber()
+        if (num) setSectionEdits(prev => ({ ...prev, [section.id]: { ...(prev[section.id] ?? {}), number: num } }))
+      }
+    }
+    setExpandedSection(isExpanded ? null : section.id)
+  }
+
+  async function handleRemoveSection(id: string) {
+    await supabase.from('sections').delete().eq('id', id)
+    setSections(prev => prev.filter(s => s.id !== id))
+    if (expandedSection === id) setExpandedSection(null)
+  }
+
+  async function handleAddToProfile() {
+    if (!page || !tapUser) return
+    const portfolioUrl = `https://tap.zakapedia.in/${tapUser.username}/${slugDraft}`
+    if (links.some(l => l.url === portfolioUrl)) return
+    const { data } = await supabase
+      .from('links')
+      .insert({ page_id: page.id, title: 'My Portfolio', url: portfolioUrl, icon: '', position: links.length })
+      .select().single()
+    if (data) setLinks(prev => [...prev, data as Link])
+  }
+
+  async function handleGeneratePortfolio() {
+    if (!page || !tapUser || !user) return
+
+    // Always sync from DB before checking — prevents stale state blocking generation
+    const { data: latestCredits } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
+    const currentBalance = latestCredits?.balance ?? 0
+    setCredits(currentBalance)
+    if (currentBalance < 10) return
+
+    setGenerating(true)
+    setGenerateError('')
+    setGenerateSuccess(false)
+    try {
+      const input = {
+        profileType: (page.profile_type ?? 'professional') as import('../services/ai').ProfileType,
+        theme: page.theme as import('../services/ai').Theme,
+        name: page.name,
+        bio: page.bio,
+        role: page.role ?? undefined,
+        userRoles: userTypes,
+        accentColor: page.accent_color,
+        avatarUrl: page.avatar_url ?? undefined,
+        profileUrl: `https://tap.zakapedia.in/${tapUser.username}`,
+        links: links.map(l => ({ title: l.title, url: l.url })),
+        sections: sections.map(s => ({
+          type: s.type,
+          content: { ...s.content as Record<string, unknown>, ...(sectionEdits[s.id] ?? {}) },
+        })),
+      }
+      const html = await generatePortfolio(input)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await supabase.from('pages').update({ portfolio_html: html } as any).eq('id', page.id)
+      setPage(prev => prev ? { ...prev, portfolio_html: html } : prev)
+      // Deduct credits — read fresh balance from DB to avoid stale state
+      const { data: freshCredits } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
+      const newBalance = Math.max(0, (freshCredits?.balance ?? 0) - 10)
+      await supabase.from('credits').update({ balance: newBalance, updated_at: new Date().toISOString() }).eq('user_id', user.id)
+      setCredits(newBalance)
+      setGenerateSuccess(true)
+    } catch (err) {
+      setGenerateError((err as Error).message ?? 'Generation failed. Please try again.')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function handleRewriteBio() {
+    if (!page || !user || !page.bio.trim()) return
+
+    const { data: latestCredits } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
+    const currentBalance = latestCredits?.balance ?? 0
+    setCredits(currentBalance)
+    if (currentBalance < 3) return
+
+    setBioRewriting(true)
+    setBioRewriteError('')
+    try {
+      const rewritten = await rewriteBio(
+        page.bio,
+        (page.profile_type ?? 'professional') as import('../services/ai').ProfileType
+      )
+      updatePage({ bio: rewritten })
+      const { data: freshCredits } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
+      const newBalance = Math.max(0, (freshCredits?.balance ?? 0) - 3)
+      await supabase.from('credits').update({ balance: newBalance, updated_at: new Date().toISOString() }).eq('user_id', user.id)
+      setCredits(newBalance)
+    } catch (err) {
+      setBioRewriteError((err as Error).message ?? 'Rewrite failed. Please try again.')
+    } finally {
+      setBioRewriting(false)
+    }
+  }
+
+  // ── End portfolio helpers ────────────────────────────────────────────────────
 
   async function handleSignOut() {
     await signOut()
@@ -422,10 +623,28 @@ function toggleMessage(id: string) {
     setCancelConfirmId(null)
   }
 
-  if (loading || !page || !tapUser) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-brand-dark flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-brand-border border-t-brand-gold rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (!tapUser) return null // useEffect redirects to /onboarding
+
+  if (!page) {
+    return (
+      <div className="min-h-screen bg-brand-dark text-brand-text flex flex-col items-center justify-center px-5 text-center">
+        <Logo linkTo="/dashboard" />
+        <h2 className="font-display italic text-2xl text-brand-text mt-8 mb-2">Your page wasn't created.</h2>
+        <p className="text-sm text-brand-muted mb-6 max-w-xs">Something went wrong during setup. Let's get you sorted.</p>
+        <button
+          onClick={() => navigate('/onboarding')}
+          className="bg-brand-gold text-brand-dark text-sm font-bold px-6 py-3 rounded-xl hover:bg-brand-gold-light transition-colors"
+        >
+          Set up your page →
+        </button>
       </div>
     )
   }
@@ -462,6 +681,14 @@ function toggleMessage(id: string) {
               <span className="w-3 h-3 border border-brand-border border-t-brand-muted rounded-full animate-spin" />
               Saving
             </span>
+          )}
+
+          {credits !== null && (
+            <div className="flex items-center gap-1 bg-brand-surface border border-brand-border rounded-lg px-2.5 py-1" title="AI credits remaining">
+              <Zap className="w-3 h-3 text-brand-gold" />
+              <span className="text-[11px] font-semibold text-brand-gold tabular-nums">{credits}</span>
+              <span className="text-[11px] text-brand-faint">credits</span>
+            </div>
           )}
 
           <div className="relative">
@@ -641,20 +868,44 @@ function toggleMessage(id: string) {
                         className="w-full bg-brand-surface border border-brand-border rounded-xl px-4 py-3 text-sm text-brand-text placeholder:text-brand-faint focus:border-brand-muted focus:outline-none transition-colors"
                       />
                     </div>
-                    {/* Bio with counter */}
+                    {/* Bio with AI rewrite */}
                     <div>
-                      <label className="text-xs font-medium text-brand-muted block mb-1.5">Bio</label>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-medium text-brand-muted">Bio</label>
+                        <button
+                          onClick={handleRewriteBio}
+                          disabled={bioRewriting || !page.bio.trim() || (credits !== null && credits < 3)}
+                          className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-brand-gold border border-brand-gold/30 bg-brand-gold/5 rounded-full px-2.5 py-1 hover:bg-brand-gold/15 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                        >
+                          {bioRewriting ? (
+                            <>
+                              <RefreshCw className="w-3 h-3 animate-spin" />
+                              Rewriting...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3 h-3" />
+                              Rewrite with AI
+                              <span className="text-brand-faint font-normal">· 3 credits</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                       <textarea
                         value={page.bio}
-                        onChange={(e) => updatePage({ bio: e.target.value })}
+                        onChange={(e) => { setBioRewriteError(''); updatePage({ bio: e.target.value }) }}
                         placeholder="Tell the world what you're about — your brand in a few words"
                         rows={3}
                         maxLength={500}
-                        className="w-full bg-brand-surface border border-brand-border rounded-xl px-4 py-3 text-sm text-brand-text placeholder:text-brand-faint focus:border-brand-muted focus:outline-none transition-colors resize-none"
+                        disabled={bioRewriting}
+                        className={`w-full bg-brand-surface border rounded-xl px-4 py-3 text-sm text-brand-text placeholder:text-brand-faint focus:border-brand-muted focus:outline-none transition-all resize-none ${bioRewriting ? 'opacity-50 cursor-not-allowed border-brand-border' : 'border-brand-border'}`}
                       />
-                      <p className={`text-right text-[10px] tabular-nums mt-1 transition-colors ${bioLen > 450 ? 'text-amber-400' : 'text-brand-faint'}`}>
-                        {bioLen}/500
-                      </p>
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="text-[10px] text-red-400">{bioRewriteError}</p>
+                        <p className={`text-[10px] tabular-nums transition-colors ${bioLen > 450 ? 'text-amber-400' : 'text-brand-faint'}`}>
+                          {bioLen}/500
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </section>
@@ -662,14 +913,14 @@ function toggleMessage(id: string) {
                 {/* User type */}
                 <section>
                   <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-[10px] font-semibold text-brand-faint uppercase tracking-[0.18em]">What best describes you?</h2>
+                    <h2 className="text-[10px] font-semibold text-brand-faint uppercase tracking-[0.18em]">Your Roles</h2>
                     {userTypes.length > 0 && (
                       <span className="text-[10px] text-brand-gold font-medium">
                         {userTypes.length} selected
                       </span>
                     )}
                   </div>
-                  <p className="text-[10px] text-brand-faint mb-3">Select all that apply</p>
+                  <p className="text-[10px] text-brand-faint mb-3">Select all that apply — you can wear multiple hats</p>
                   <div className="flex flex-wrap gap-2">
                     {USER_TYPES.map((t) => {
                       const active = userTypes.includes(t.id)
@@ -765,6 +1016,283 @@ function toggleMessage(id: string) {
                   </a>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* PORTFOLIO */}
+        {activeTab === 'portfolio' && (
+          <div className="flex-1 overflow-y-auto pb-24">
+            <div className="px-4 sm:px-6 pt-5 max-w-xl">
+
+              {/* URL row */}
+              <section className="mb-6">
+                <h2 className="text-[10px] font-semibold text-brand-faint uppercase tracking-[0.18em] mb-3">Portfolio URL</h2>
+                <div className="bg-brand-surface border border-brand-border rounded-2xl px-5 py-4">
+                  <div className="flex items-center gap-1 mb-3 flex-wrap">
+                    <span className="text-xs text-brand-faint font-mono whitespace-nowrap">tap.zakapedia.in/{tapUser.username}/</span>
+                    <input
+                      value={slugDraft}
+                      onChange={e => setSlugDraft(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                      onBlur={saveSlug}
+                      maxLength={40}
+                      className="flex-1 min-w-16 bg-transparent text-brand-gold font-mono text-xs focus:outline-none border-b border-dashed border-brand-gold/50 focus:border-brand-gold pb-0.5"
+                    />
+                    <a
+                      href={`/${tapUser.username}/${slugDraft}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-brand-faint hover:text-brand-text transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                  <p className="text-[10px] text-brand-faint">
+                    e.g. <span className="text-brand-muted font-mono">portfolio</span>, <span className="text-brand-muted font-mono">cv</span>, <span className="text-brand-muted font-mono">menu</span>, <span className="text-brand-muted font-mono">showcase</span>
+                  </p>
+                </div>
+              </section>
+
+              {/* Sections */}
+              <section className="mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-[10px] font-semibold text-brand-faint uppercase tracking-[0.18em]">Sections</h2>
+                  <span className="text-[10px] text-brand-faint">{sections.length} section{sections.length !== 1 ? 's' : ''}</span>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {sections.map(section => {
+                    const meta = SECTION_META[section.type]
+                    if (!meta) return null
+                    const SectionIcon = meta.icon
+                    const isExpanded = expandedSection === section.id
+                    const edits = sectionEdits[section.id] ?? {}
+                    const content = { ...section.content as Record<string, string>, ...edits }
+                    return (
+                      <div key={section.id} className="rounded-2xl border border-brand-border bg-brand-surface overflow-hidden">
+                        <div
+                          onClick={() => handleExpandSection(section)}
+                          className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-brand-border/20 transition-colors"
+                        >
+                          <SectionIcon className="w-5 h-5 flex-shrink-0 text-brand-faint" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-brand-text">{meta.label}</p>
+                            <p className="text-xs text-brand-faint mt-0.5 truncate">{meta.desc}</p>
+                          </div>
+                          <ChevronDown className={`w-4 h-4 text-brand-faint transition-transform flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
+                        </div>
+                        {isExpanded && (
+                          <div
+                            className="px-4 pb-4 border-t border-brand-border"
+                            onBlur={section.type !== 'products' ? () => saveSectionContent(section, edits) : undefined}
+                          >
+                            <p className="text-[10px] text-brand-faint mt-3 mb-2.5">
+                              {section.type === 'products' ? 'Changes save immediately.' : 'Changes auto-save when you leave a field.'}
+                            </p>
+                            {section.type === 'products' ? (
+                              <ProductSectionEditor
+                                section={section}
+                                userId={user!.id}
+                                onUpdate={updated => setSections(prev => prev.map(s => s.id === updated.id ? updated : s))}
+                              />
+                            ) : (
+                              <SectionContentEditor
+                                type={section.type}
+                                content={content}
+                                onChange={(key, value) => setSectionEdits(prev => ({
+                                  ...prev,
+                                  [section.id]: { ...(prev[section.id] ?? {}), [key]: value }
+                                }))}
+                              />
+                            )}
+                            <button
+                              onClick={() => handleRemoveSection(section.id)}
+                              className="mt-3 text-[10px] text-brand-faint hover:text-red-400 transition-colors"
+                            >
+                              Remove section
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Add section */}
+                <div className="mt-2.5">
+                  {addSectionOpen ? (
+                    <div className="bg-brand-surface border border-brand-border rounded-2xl p-4">
+                      <p className="text-[10px] font-semibold text-brand-faint uppercase tracking-[0.18em] mb-3">Add a section</p>
+                      <div className="flex flex-col gap-1">
+                        {Object.entries(SECTION_META)
+                          .filter(([type]) => !sections.some(s => s.type === type))
+                          .map(([type, meta]) => {
+                            const AddIcon = meta.icon
+                            return (
+                            <button
+                              key={type}
+                              onClick={() => handleAddSection(type)}
+                              className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-brand-border/40 transition-colors text-left"
+                            >
+                              <AddIcon className="w-4 h-4 flex-shrink-0 text-brand-faint" />
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-brand-text">{meta.label}</p>
+                                <p className="text-[10px] text-brand-faint">{meta.desc}</p>
+                              </div>
+                            </button>
+                            )
+                          })
+                        }
+                        {Object.keys(SECTION_META).filter(t => !sections.some(s => s.type === t)).length === 0 && (
+                          <p className="text-xs text-brand-faint text-center py-4">All sections added!</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setAddSectionOpen(false)}
+                        className="mt-3 text-xs text-brand-faint hover:text-brand-muted transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setAddSectionOpen(true)}
+                      className="w-full flex items-center justify-center gap-2 border border-dashed border-brand-border rounded-2xl py-3 text-xs text-brand-faint hover:text-brand-muted hover:border-brand-muted transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add section
+                    </button>
+                  )}
+                </div>
+              </section>
+
+              {/* Credits */}
+              <section>
+                <h2 className="text-[10px] font-semibold text-brand-faint uppercase tracking-[0.18em] mb-3">AI Credits</h2>
+                <div className="rounded-2xl border border-brand-border bg-brand-surface px-5 py-4 mb-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-brand-gold" />
+                      <span className="text-sm font-bold text-brand-gold tabular-nums">{credits ?? '—'}</span>
+                      <span className="text-xs text-brand-muted">credits remaining</span>
+                    </div>
+                    {credits !== null && credits < 10 && (
+                      <span className="text-[10px] font-semibold text-red-400 uppercase tracking-wide">Low</span>
+                    )}
+                  </div>
+                  <div className="w-full bg-brand-border rounded-full h-1 mb-3">
+                    <div
+                      className="bg-brand-gold rounded-full h-1 transition-all"
+                      style={{ width: `${Math.min(100, ((credits ?? 0) / 20) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-brand-muted mb-3">Each generation costs 10 credits. Get more credits to keep building.</p>
+                  <a
+                    href={`https://wa.me/916381601740?text=${encodeURIComponent('Hi! I\'d like to buy AI credits for my Tap portfolio.')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full flex items-center justify-center gap-2 border border-brand-gold/40 text-brand-gold hover:bg-brand-gold/10 text-xs font-semibold py-2.5 rounded-xl transition-colors"
+                  >
+                    <Zap className="w-3.5 h-3.5" /> Buy Credits
+                  </a>
+                </div>
+              </section>
+
+              {/* Status + actions */}
+              <section>
+                <h2 className="text-[10px] font-semibold text-brand-faint uppercase tracking-[0.18em] mb-3">Publish</h2>
+
+                {/* Portfolio status */}
+                <div className={`rounded-2xl border px-5 py-4 mb-3 transition-colors ${
+                  page.portfolio_html
+                    ? 'border-green-800/50 bg-green-950/20'
+                    : 'border-brand-border bg-brand-surface'
+                }`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${page.portfolio_html ? (generateSuccess ? 'bg-green-400 animate-pulse' : 'bg-green-400') : 'bg-brand-faint'}`} />
+                    <span className={`text-[10px] font-semibold tracking-[0.14em] uppercase ${page.portfolio_html ? 'text-green-400' : 'text-brand-faint'}`}>
+                      {generateSuccess ? 'Just generated!' : page.portfolio_html ? 'Portfolio ready' : 'Not generated yet'}
+                    </span>
+                  </div>
+                  {page.portfolio_html && (
+                    <a
+                      href={`/${tapUser.username}/${slugDraft}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs text-brand-muted hover:text-brand-text transition-colors mt-1"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      tap.zakapedia.in/{tapUser.username}/{slugDraft}
+                    </a>
+                  )}
+                </div>
+
+                {/* Add to profile */}
+                {(() => {
+                  const portfolioUrl = `https://tap.zakapedia.in/${tapUser.username}/${slugDraft}`
+                  const alreadyAdded = links.some(l => l.url === portfolioUrl)
+                  return (
+                    <button
+                      onClick={handleAddToProfile}
+                      disabled={alreadyAdded}
+                      className={`w-full flex items-center justify-center gap-2 border rounded-xl py-3 text-sm font-medium transition-colors mb-3 ${
+                        alreadyAdded
+                          ? 'border-green-800/50 text-green-400 bg-green-950/20 cursor-default'
+                          : 'border-brand-border text-brand-muted hover:text-brand-text hover:border-brand-faint'
+                      }`}
+                    >
+                      {alreadyAdded
+                        ? <><Check className="w-4 h-4" /> Added to profile links</>
+                        : <><Plus className="w-4 h-4" /> Add portfolio link to profile</>
+                      }
+                    </button>
+                  )
+                })()}
+
+                {/* Generate */}
+                {generateError && (
+                  <p className="text-xs text-red-400 bg-red-950/40 border border-red-900/50 rounded-xl px-4 py-3 mb-3">
+                    {generateError}
+                  </p>
+                )}
+                <button
+                  onClick={handleGeneratePortfolio}
+                  disabled={generating || (credits !== null && credits < 10)}
+                  className="w-full flex items-center justify-center gap-2 bg-brand-gold text-brand-dark text-sm font-bold py-3.5 rounded-xl hover:bg-brand-gold-light transition-colors disabled:opacity-40"
+                >
+                  {generating
+                    ? <><span className="w-4 h-4 border-2 border-brand-dark border-t-transparent rounded-full animate-spin" /> Generating…</>
+                    : page.portfolio_html
+                      ? <><RefreshCw className="w-4 h-4" /> Regenerate · <Zap className="w-3.5 h-3.5" /> 10 credits</>
+                      : <><Sparkles className="w-4 h-4" /> Generate Portfolio with AI · <Zap className="w-3.5 h-3.5" /> 10 credits</>
+                  }
+                </button>
+                {credits !== null && credits < 10 && !generating && !generateSuccess && (
+                  <p className="text-center text-xs text-red-400 mt-2">
+                    Not enough credits (need 10, have {credits})
+                  </p>
+                )}
+                {credits !== null && credits < 10 && !generating && generateSuccess && (
+                  <p className="text-center text-xs text-brand-muted mt-2">
+                    Buy more credits to regenerate
+                  </p>
+                )}
+
+                {/* Custom portfolio CTA */}
+                <div className="mt-4 border border-brand-border rounded-2xl px-5 py-4">
+                  <p className="text-xs font-semibold text-brand-text mb-1">Want something more?</p>
+                  <p className="text-[11px] text-brand-muted mb-3 leading-relaxed">Get a custom-designed portfolio on your own domain, or have us redesign this page to match your brand.</p>
+                  <a
+                    href={`https://wa.me/916381601740?text=${encodeURIComponent(`Hi! I'd like a custom portfolio page on my own domain. My Tap profile: https://tap.zakapedia.in/${tapUser?.username}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full flex items-center justify-center gap-2 border border-brand-border text-brand-muted hover:text-brand-text hover:border-brand-faint text-xs font-medium py-2.5 rounded-xl transition-colors"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" /> Chat with us on WhatsApp
+                  </a>
+                </div>
+              </section>
+
             </div>
           </div>
         )}

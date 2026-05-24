@@ -8,6 +8,7 @@ import { Onboarding } from './pages/Onboarding'
 import { Dashboard } from './pages/Dashboard'
 import { AdminOrders } from './pages/AdminOrders'
 import { PublicProfile } from './pages/PublicProfile'
+import { PortfolioPage } from './pages/PortfolioPage'
 import { Privacy } from './pages/Privacy'
 import { Terms } from './pages/Terms'
 
@@ -43,6 +44,8 @@ export function App() {
             path="/admin"
             element={<ProtectedRoute><AdminOrders /></ProtectedRoute>}
           />
+          {/* Portfolio — before /:username so it isn't swallowed */}
+          <Route path="/:username/:slug" element={<PortfolioPage />} />
           {/* Public profile — last so it doesn't shadow app routes */}
           <Route path="/:username" element={<PublicProfile />} />
         </Routes>

@@ -11,7 +11,10 @@
       "mcp__plugin_supabase_supabase__list_tables",
       "mcp__plugin_supabase_supabase__execute_sql",
       "Skill(frontend-design:frontend-design)",
-      "Skill(frontend-design)"
+      "Skill(frontend-design)",
+      "mcp__plugin_supabase_supabase__list_projects",
+      "mcp__plugin_supabase_supabase__apply_migration",
+      "mcp__plugin_supabase_supabase__deploy_edge_function"
     ]
   },
   "enabledPlugins": {

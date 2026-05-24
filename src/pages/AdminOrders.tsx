@@ -4,7 +4,7 @@ import {
   Copy, Check, LogOut, Wifi, CreditCard, RefreshCw,
   Phone, ArrowRight, ExternalLink, Users, Globe,
   Eye, MousePointerClick, TrendingUp, MessageSquare,
-  Package, Settings,
+  Package, Settings, X, Search,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -47,6 +47,23 @@ interface SourceStat {
   pct: number
 }
 
+interface UserRow {
+  id: string
+  username: string
+  email: string
+  created_at: string
+  hasPublishedPage: boolean
+}
+
+interface PageRow {
+  id: string
+  name: string
+  username: string
+  theme: string
+  published: boolean
+  views30: number
+}
+
 interface AdminData {
   totalUsers: number
   newUsersLast7: number
@@ -65,6 +82,8 @@ interface AdminData {
   pendingCards: number
   userMessages: { id: string; user_id: string; message: string; order_type: string; order_id: string | null; read: boolean; created_at: string; users?: { username: string } }[]
   unreadUserMessages: number
+  allUsers: UserRow[]
+  allPages: PageRow[]
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -161,45 +180,64 @@ function CopyBox({ text, id, copiedId, onCopy }: {
 
 // ─── Overview components ─────────────────────────────────────────────────────
 
-function StatCard({ icon, label, primary, secondary, accent = false }: {
+function StatCard({ icon, label, primary, secondary, accent = false, active = false, onClick }: {
   icon: React.ReactNode; label: string
-  primary: string | number; secondary?: string; accent?: boolean
+  primary: string | number; secondary?: string
+  accent?: boolean; active?: boolean; onClick?: () => void
 }) {
+  const isHighlighted = accent || active
   return (
-    <div className={`rounded-2xl border p-4 flex flex-col gap-2 ${accent ? 'border-brand-gold/30 bg-brand-gold/[0.06]' : 'border-brand-border bg-brand-surface'}`}>
-      <div className={`flex items-center gap-2 ${accent ? 'text-brand-gold' : 'text-brand-faint'}`}>
+    <button
+      onClick={onClick}
+      className={`rounded-2xl border p-4 flex flex-col gap-2 text-left w-full transition-all ${
+        active
+          ? 'border-brand-gold/50 shadow-[0_0_0_1px_rgba(201,150,58,0.15)]'
+          : isHighlighted
+          ? 'border-brand-gold/30 bg-brand-gold/[0.06] hover:border-brand-gold/50'
+          : 'border-brand-border bg-brand-surface hover:border-brand-faint/30'
+      }`}
+      style={active ? { backgroundColor: 'rgba(201,150,58,0.08)' } : undefined}
+    >
+      <div className={`flex items-center gap-2 ${isHighlighted || active ? 'text-brand-gold' : 'text-brand-faint'}`}>
         {icon}
         <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">{label}</span>
       </div>
-      <p className={`text-2xl font-bold tabular-nums ${accent ? 'text-brand-gold' : 'text-brand-text'}`}>{fmt(Number(primary))}</p>
+      <p className={`text-2xl font-bold tabular-nums ${isHighlighted || active ? 'text-brand-gold' : 'text-brand-text'}`}>
+        {fmt(Number(primary))}
+      </p>
       {secondary && <p className="text-[11px] text-brand-faint">{secondary}</p>}
-    </div>
+    </button>
   )
 }
 
-function ActivityChart({ data }: { data: DayActivity[] }) {
-  const maxViews = Math.max(...data.map(d => d.views), 1)
-  const maxClicks = Math.max(...data.map(d => d.clicks), 1)
-  const max = Math.max(maxViews, maxClicks, 1)
+function ActivityChart({ data, activeMetric }: { data: DayActivity[]; activeMetric: 'views' | 'clicks' | 'all' }) {
+  const max = Math.max(...data.map(d => Math.max(d.views, d.clicks)), 1)
+
+  const viewsActive  = activeMetric === 'all' || activeMetric === 'views'
+  const clicksActive = activeMetric === 'all' || activeMetric === 'clicks'
 
   return (
     <div>
       <div className="flex items-end gap-1.5 h-24 mb-2">
         {data.map((d) => (
           <div key={d.date} className="flex-1 flex items-end gap-0.5">
-            {/* Views bar */}
             <div className="flex-1 flex flex-col justify-end">
               <div
-                className="rounded-t-sm w-full bg-brand-gold transition-all duration-500"
-                style={{ height: `${Math.max((d.views / max) * 88, 2)}px` }}
+                className="rounded-t-sm w-full transition-all duration-500"
+                style={{
+                  height: `${Math.max((d.views / max) * 88, 2)}px`,
+                  backgroundColor: viewsActive ? '#C9963A' : 'rgba(201,150,58,0.15)',
+                }}
                 title={`${d.views} views`}
               />
             </div>
-            {/* Clicks bar */}
             <div className="flex-1 flex flex-col justify-end">
               <div
-                className="rounded-t-sm w-full bg-brand-gold/30 transition-all duration-500"
-                style={{ height: `${Math.max((d.clicks / max) * 88, 2)}px` }}
+                className="rounded-t-sm w-full transition-all duration-500"
+                style={{
+                  height: `${Math.max((d.clicks / max) * 88, 2)}px`,
+                  backgroundColor: clicksActive ? '#6366F1' : 'rgba(99,102,241,0.15)',
+                }}
                 title={`${d.clicks} clicks`}
               />
             </div>
@@ -215,12 +253,12 @@ function ActivityChart({ data }: { data: DayActivity[] }) {
       </div>
       <div className="flex items-center gap-4 mt-3">
         <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-sm bg-brand-gold" />
-          <span className="text-[10px] text-brand-faint">Views</span>
+          <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: viewsActive ? '#C9963A' : 'rgba(201,150,58,0.3)' }} />
+          <span className="text-[10px]" style={{ color: viewsActive ? '#C9963A' : '#4A4540' }}>Views</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-sm bg-brand-gold/30" />
-          <span className="text-[10px] text-brand-faint">Clicks</span>
+          <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: clicksActive ? '#6366F1' : 'rgba(99,102,241,0.3)' }} />
+          <span className="text-[10px]" style={{ color: clicksActive ? '#6366F1' : '#4A4540' }}>Clicks</span>
         </div>
       </div>
     </div>
@@ -434,6 +472,9 @@ export function AdminOrders() {
   const [ordersTab, setOrdersTab] = useState<OrdersTab>('nfc')
   const [data, setData] = useState<AdminData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [activeMetric, setActiveMetric] = useState<'views' | 'clicks' | 'all'>('all')
+  const [activePanel, setActivePanel] = useState<'users' | 'pages' | null>(null)
+  const [panelSearch, setPanelSearch] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [updateDrafts, setUpdateDrafts] = useState<Record<string, string>>({})
   const [sendingUpdate, setSendingUpdate] = useState<string | null>(null)
@@ -460,8 +501,8 @@ export function AdminOrders() {
       views30Res, clicks30Res,
       nfcRes, cardRes, userMsgRes,
     ] = await Promise.all([
-      supabase.from('users').select('id, created_at'),
-      supabase.from('pages').select('id, published, user_id, name, users(username)'),
+      supabase.from('users').select('id, username, email, created_at'),
+      supabase.from('pages').select('id, published, user_id, name, theme, users(username)'),
       supabase.from('page_views').select('*', { count: 'exact', head: true }),
       supabase.from('link_clicks').select('*', { count: 'exact', head: true }),
       supabase.from('page_views').select('page_id, timestamp, source').gte('timestamp', ago30),
@@ -521,6 +562,30 @@ export function AdminOrders() {
     const cardOrders  = (cardRes.data ?? []) as AdminCardOrder[]
     const userMessages = (userMsgRes.data ?? []) as any[]
 
+    // All users enriched with published-page flag
+    const publishedByUserId = new Set(pages.filter(p => p.published).map(p => p.user_id))
+    const allUsers: UserRow[] = (users as any[])
+      .map(u => ({
+        id: u.id,
+        username: u.username ?? '',
+        email: u.email ?? '',
+        created_at: u.created_at,
+        hasPublishedPage: publishedByUserId.has(u.id),
+      }))
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+    // All pages enriched with 30-day view count
+    const allPages: PageRow[] = (pages as any[])
+      .map(p => ({
+        id: p.id,
+        name: p.name ?? '',
+        username: (p.users as any)?.username ?? '',
+        theme: p.theme ?? '',
+        published: p.published,
+        views30: pvMap[p.id] ?? 0,
+      }))
+      .sort((a, b) => b.views30 - a.views30)
+
     setData({
       totalUsers:    users.length,
       newUsersLast7: users.filter(u => new Date(u.created_at).getTime() > now - ms7).length,
@@ -539,6 +604,8 @@ export function AdminOrders() {
       pendingCards:  cardOrders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled').length,
       userMessages,
       unreadUserMessages: userMessages.filter((m: any) => !m.read).length,
+      allUsers,
+      allPages,
     })
     setLoading(false)
   }
@@ -689,12 +756,16 @@ export function AdminOrders() {
                     label="Total users"
                     primary={data.totalUsers}
                     secondary={`+${data.newUsersLast7} this week`}
+                    active={activePanel === 'users'}
+                    onClick={() => { setActivePanel(p => p === 'users' ? null : 'users'); setPanelSearch('') }}
                   />
                   <StatCard
                     icon={<Globe className="w-4 h-4" />}
                     label="Live pages"
                     primary={data.publishedPages}
                     secondary={`${data.totalPages} total`}
+                    active={activePanel === 'pages'}
+                    onClick={() => { setActivePanel(p => p === 'pages' ? null : 'pages'); setPanelSearch('') }}
                   />
                   <StatCard
                     icon={<Eye className="w-4 h-4" />}
@@ -702,6 +773,8 @@ export function AdminOrders() {
                     primary={data.totalViews}
                     secondary={`${fmt(data.viewsLast7)} this week`}
                     accent
+                    active={activeMetric === 'views'}
+                    onClick={() => setActiveMetric(m => m === 'views' ? 'all' : 'views')}
                   />
                   <StatCard
                     icon={<MousePointerClick className="w-4 h-4" />}
@@ -709,14 +782,177 @@ export function AdminOrders() {
                     primary={data.totalClicks}
                     secondary={`${fmt(data.clicksLast7)} this week`}
                     accent
+                    active={activeMetric === 'clicks'}
+                    onClick={() => setActiveMetric(m => m === 'clicks' ? 'all' : 'clicks')}
                   />
                 </div>
+
+                {/* ── Users panel ── */}
+                {activePanel === 'users' && (() => {
+                  const q = panelSearch.toLowerCase()
+                  const filtered = data.allUsers.filter(u =>
+                    !q || u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+                  )
+                  return (
+                    <div className="rounded-2xl border border-brand-border bg-brand-surface overflow-hidden">
+                      <div className="px-5 py-3.5 border-b border-brand-border flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold text-brand-text">All users ({data.allUsers.length})</p>
+                        <button onClick={() => setActivePanel(null)} className="text-brand-faint hover:text-brand-text transition-colors">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="px-5 py-3 border-b border-brand-border">
+                        <div className="flex items-center gap-2 bg-brand-dark rounded-xl px-3 py-2">
+                          <Search className="w-3.5 h-3.5 text-brand-faint flex-shrink-0" />
+                          <input
+                            value={panelSearch}
+                            onChange={e => setPanelSearch(e.target.value)}
+                            placeholder="Search by username or email…"
+                            className="flex-1 bg-transparent text-xs text-brand-text placeholder:text-brand-faint focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                      <div className="max-h-[420px] overflow-y-auto divide-y divide-brand-border scrollbar-thin">
+                        {filtered.length === 0 ? (
+                          <p className="text-xs text-brand-faint px-5 py-6 text-center">No users match "{panelSearch}"</p>
+                        ) : filtered.map((u, i) => (
+                          <div key={u.id} className="flex items-center gap-3 px-5 py-3 hover:bg-brand-border/20 transition-colors">
+                            <span className="text-[10px] text-brand-faint w-5 text-right flex-shrink-0 tabular-nums">{i + 1}</span>
+                            <div
+                              className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
+                              style={{ backgroundColor: u.hasPublishedPage ? 'rgba(201,150,58,0.15)' : '#1E1A12', color: u.hasPublishedPage ? '#C9963A' : '#4A4540' }}
+                            >
+                              {(u.username || '?')[0].toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-semibold text-brand-text truncate">@{u.username || '—'}</span>
+                                {u.hasPublishedPage && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-900/30 text-green-400 border border-green-800/30 flex-shrink-0">Live</span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-brand-faint truncate">{u.email}</p>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <p className="text-[10px] text-brand-faint">{timeAgo(u.created_at)}</p>
+                            </div>
+                            {u.username && (
+                              <a
+                                href={`/${u.username}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-brand-faint hover:text-brand-gold transition-colors flex-shrink-0"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* ── Pages panel ── */}
+                {activePanel === 'pages' && (() => {
+                  const q = panelSearch.toLowerCase()
+                  const filtered = data.allPages.filter(p =>
+                    !q || p.name.toLowerCase().includes(q) || p.username.toLowerCase().includes(q)
+                  )
+                  const THEME_COLORS: Record<string, string> = {
+                    editorial: '#F59E0B', minimal: '#6366F1', expressive: '#EC4899',
+                  }
+                  return (
+                    <div className="rounded-2xl border border-brand-border bg-brand-surface overflow-hidden">
+                      <div className="px-5 py-3.5 border-b border-brand-border flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold text-brand-text">
+                          All pages — {data.publishedPages} live · {data.totalPages - data.publishedPages} draft
+                        </p>
+                        <button onClick={() => setActivePanel(null)} className="text-brand-faint hover:text-brand-text transition-colors">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="px-5 py-3 border-b border-brand-border">
+                        <div className="flex items-center gap-2 bg-brand-dark rounded-xl px-3 py-2">
+                          <Search className="w-3.5 h-3.5 text-brand-faint flex-shrink-0" />
+                          <input
+                            value={panelSearch}
+                            onChange={e => setPanelSearch(e.target.value)}
+                            placeholder="Search by name or username…"
+                            className="flex-1 bg-transparent text-xs text-brand-text placeholder:text-brand-faint focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                      <div className="max-h-[420px] overflow-y-auto divide-y divide-brand-border scrollbar-thin">
+                        {filtered.length === 0 ? (
+                          <p className="text-xs text-brand-faint px-5 py-6 text-center">No pages match "{panelSearch}"</p>
+                        ) : filtered.map((p, i) => (
+                          <div key={p.id} className="flex items-center gap-3 px-5 py-3 hover:bg-brand-border/20 transition-colors">
+                            <span className="text-[10px] text-brand-faint w-5 text-right flex-shrink-0 tabular-nums">{i + 1}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                <span className="text-xs font-semibold text-brand-text truncate">{p.name || '—'}</span>
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 border ${
+                                  p.published
+                                    ? 'bg-green-900/30 text-green-400 border-green-800/30'
+                                    : 'bg-brand-border/50 text-brand-faint border-brand-border'
+                                }`}>
+                                  {p.published ? 'Live' : 'Draft'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-brand-faint">@{p.username}</span>
+                                {p.theme && (
+                                  <span
+                                    className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                                    style={{
+                                      backgroundColor: (THEME_COLORS[p.theme] ?? '#8A7F74') + '22',
+                                      color: THEME_COLORS[p.theme] ?? '#8A7F74',
+                                    }}
+                                  >
+                                    {p.theme}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {p.views30 > 0 && (
+                              <div className="text-right flex-shrink-0">
+                                <p className="text-xs font-semibold text-brand-muted tabular-nums">{fmt(p.views30)}</p>
+                                <p className="text-[9px] text-brand-faint">views/30d</p>
+                              </div>
+                            )}
+                            {p.username && (
+                              <a
+                                href={`/${p.username}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-brand-faint hover:text-brand-gold transition-colors flex-shrink-0"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
 
                 {/* Activity chart + traffic sources */}
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div className="rounded-2xl border border-brand-border bg-brand-surface p-5">
-                    <p className="text-xs font-semibold text-brand-text mb-4">Activity — last 7 days</p>
-                    <ActivityChart data={data.dailyActivity} />
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-xs font-semibold text-brand-text">Activity — last 7 days</p>
+                      {activeMetric !== 'all' && (
+                        <button
+                          onClick={() => setActiveMetric('all')}
+                          className="text-[10px] text-brand-faint hover:text-brand-muted transition-colors"
+                        >
+                          Show all
+                        </button>
+                      )}
+                    </div>
+                    <ActivityChart data={data.dailyActivity} activeMetric={activeMetric} />
                   </div>
                   <div className="rounded-2xl border border-brand-border bg-brand-surface p-5">
                     <p className="text-xs font-semibold text-brand-text mb-4">Traffic sources — last 30 days</p>

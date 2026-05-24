@@ -278,14 +278,15 @@ export function Expressive({ page, links, isPreview = false, userTypes = [] }: P
         </div>
 
         {/* Footer */}
-        <p style={{ textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.18)', fontWeight: 600 }}>
-          Made with{' '}
+        <p style={{ textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.5)', fontWeight: 700, paddingBottom: 8 }}>
           <a
             href="https://tap.zakapedia.in"
-            style={{ color: 'rgba(255,255,255,0.28)' }}
+            target="_blank"
+            rel="noopener noreferrer"
             onClick={(e) => isPreview && e.preventDefault()}
+            style={{ color: 'rgba(255,255,255,0.5)', textDecoration: 'none' }}
           >
-            Tap
+            Made with Tap.Zakapedia.in
           </a>
         </p>
       </div>

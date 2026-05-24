@@ -13,8 +13,29 @@ function detectSource(): string {
   return 'direct'
 }
 
+async function detectCountry(): Promise<string | null> {
+  const cached = sessionStorage.getItem('tap_country')
+  if (cached !== null) return cached || null
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 3000)
+    const res = await fetch('https://ipapi.co/json/', { signal: controller.signal })
+    clearTimeout(timeout)
+    if (!res.ok) throw new Error()
+    const data = await res.json()
+    const country = (data.country_name as string) ?? ''
+    sessionStorage.setItem('tap_country', country)
+    return country || null
+  } catch {
+    sessionStorage.setItem('tap_country', '')
+    return null
+  }
+}
+
 export async function trackPageView(pageId: string) {
-  await supabase.from('page_views').insert({ page_id: pageId, source: detectSource() })
+  const [source, country] = await Promise.all([detectSource(), detectCountry()])
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await supabase.from('page_views').insert({ page_id: pageId, source, country } as any)
 }
 
 export async function trackLinkClick(linkId: string, pageId: string) {

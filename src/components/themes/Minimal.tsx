@@ -223,16 +223,17 @@ export function Minimal({ page, links, isPreview = false, userTypes = [] }: Prop
         </div>
 
         {/* Footer */}
-        <p style={{ textAlign: 'center', fontSize: 10, color: '#E5E7EB', paddingBottom: 32 }}>
-          Made with{' '}
+        <div style={{ textAlign: 'center', paddingBottom: 40, paddingTop: 8 }}>
           <a
             href="https://tap.zakapedia.in"
-            style={{ color: '#D1D5DB' }}
+            target="_blank"
+            rel="noopener noreferrer"
             onClick={(e) => isPreview && e.preventDefault()}
+            style={{ fontSize: 13, color: '#9CA3AF', fontWeight: 600, textDecoration: 'none', letterSpacing: '0.01em' }}
           >
-            Tap
+            Made with Tap.Zakapedia.in
           </a>
-        </p>
+        </div>
       </div>
       <FloatingActions page={page} links={links} isPreview={isPreview} />
     </div>

@@ -1,4 +1,5 @@
 export type Theme = 'editorial' | 'minimal' | 'expressive'
+export type ProfileType = 'creator' | 'professional' | 'business' | 'service_pro' | 'speaker'
 export type OrderStatus = 'placed' | 'printing' | 'shipped' | 'delivered' | 'cancelled'
 export type PrintingStatus = 'placed' | 'printing' | 'shipped' | 'delivered' | 'cancelled'
 export type VisitingCardTemplate = 'editorial' | 'minimal' | 'expressive' | 'upload'
@@ -19,9 +20,38 @@ export interface Page {
   accent_color: string
   name: string
   bio: string
+  role?: string | null
+  profile_type?: ProfileType | null
+  portfolio_html?: string | null
+  portfolio_slug?: string | null
   avatar_url: string | null
   banner_url?: string | null
   published: boolean
+}
+
+export interface ProductItem {
+  id: string
+  name: string
+  price: string
+  description?: string
+  image_url?: string
+  category?: string
+  in_stock: boolean
+}
+
+export interface Section {
+  id: string
+  page_id: string
+  type: string
+  position: number
+  content: Record<string, unknown>
+  created_at: string
+}
+
+export interface Credits {
+  user_id: string
+  balance: number
+  updated_at: string
 }
 
 export interface Link {
