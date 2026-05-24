@@ -29,7 +29,7 @@ const PREVIEW_LINKS: TapLink[] = [
 ]
 
 const MARQUEE_ITEMS = [
-  'AI portfolio builder', 'Not a template picker', 'Built in India',
+  'One link for everything', 'AI builds your story', 'Built in India',
   'Three design systems', 'NFC cards', 'Analytics built-in',
   '20 free credits', 'WhatsApp-first sharing', 'Your page in seconds',
 ]
@@ -108,7 +108,7 @@ export function Home() {
         <div>
           <div className="inline-flex items-center gap-2 text-[10px] font-semibold tracking-[0.2em] text-brand-muted border border-brand-border rounded-full px-3 py-1.5 mb-10 uppercase animate-fade-in">
             <Sparkles className="w-3 h-3 text-brand-gold" />
-            AI Portfolio Builder · 20 free credits
+            AI-powered · 20 free credits
           </div>
 
           <h1 className="font-display font-black leading-[0.84] mb-8 select-none">
@@ -122,13 +122,13 @@ export function Home() {
           </h1>
 
           <p className="text-xl sm:text-2xl text-brand-muted font-display leading-snug mb-4 animate-fade-in" style={{ animationDelay: '320ms' }}>
-            Not a link page.
+            All your links,
             <br />
-            <span className="text-brand-text">AI builds your portfolio.</span>
+            <span className="text-brand-text">one beautiful page.</span>
           </p>
 
           <p className="text-[14px] text-brand-faint max-w-[340px] mb-10 leading-relaxed animate-fade-in" style={{ animationDelay: '420ms' }}>
-            Fill in your name, bio, and sections. AI generates a unique, beautiful portfolio page in seconds — your voice, your design.
+            Share one link everywhere — bio, work, socials, contact. AI writes your story and turns your links into a portfolio, not just a list.
           </p>
 
           <div className="flex flex-wrap gap-3 animate-fade-in" style={{ animationDelay: '520ms' }}>
@@ -136,7 +136,7 @@ export function Home() {
               to="/signup"
               className="group inline-flex items-center gap-2 bg-brand-gold text-brand-dark text-sm font-bold px-6 py-3.5 rounded-xl hover:bg-brand-gold-light transition-all"
             >
-              Build my portfolio
+              Create my page
               <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <a
@@ -202,7 +202,7 @@ export function Home() {
       <div className="border-y border-brand-border bg-brand-surface/50 py-4 overflow-hidden">
         <div
           className="flex whitespace-nowrap will-change-transform"
-          style={{ animation: 'marquee 28s linear infinite' }}
+          style={{ animation: 'marquee 18s linear infinite' }}
         >
           {[...MARQUEE_ITEMS, ...MARQUEE_ITEMS, ...MARQUEE_ITEMS, ...MARQUEE_ITEMS].map((item, i) => (
             <span key={i} className="inline-flex items-center gap-5 mx-6">
@@ -302,30 +302,30 @@ export function Home() {
         <div className="border-b border-brand-border py-8 overflow-hidden select-none">
           <div
             className="flex whitespace-nowrap will-change-transform"
-            style={{ animation: 'marquee 20s linear infinite' }}
+            style={{ animation: 'marquee 13s linear infinite' }}
           >
             {Array.from({ length: 8 }).map((_, i) => (
               <span key={i} className="font-display font-black italic text-[clamp(64px,12vw,180px)] leading-none text-brand-gold/[0.07] tracking-tight pr-16 flex-shrink-0">
-                Your portfolio.
+                One link.
               </span>
             ))}
           </div>
         </div>
         <div className="max-w-2xl mx-auto px-6 py-24 text-center">
           <h2 className="font-display italic font-bold text-[clamp(44px,7vw,88px)] leading-[0.88] text-brand-text mb-6">
-            Your portfolio.<br />
-            <span className="text-brand-gold">Built by AI.</span>
+            One link.<br />
+            <span className="text-brand-gold">Every door.</span>
           </h2>
           <p className="text-brand-faint text-base mb-10 leading-relaxed">
-            20 free credits on signup — enough to generate your first portfolio and share it with the world.
-            No monthly plan. No card required.
+            Share one page for everything you do — and let AI make it look like a portfolio.
+            20 free credits on signup. No monthly plan. No card required.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               to="/signup"
               className="group inline-flex items-center gap-2 bg-brand-gold text-brand-dark text-base font-bold px-8 py-4 rounded-xl hover:bg-brand-gold-light transition-all"
             >
-              Start building
+              Create my page
               <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <p className="text-xs text-brand-faint">20 credits free · No card required</p>
@@ -521,8 +521,8 @@ function StepVisual3() {
   }, [])
 
   const WRITING_LABELS = [
-    'Writing your hero section...',
-    'Crafting your bio...',
+    'Reading your links...',
+    'Writing your bio...',
     'Building your sections...',
     'Applying your theme...',
     'Almost there...',
@@ -603,9 +603,9 @@ function HowItWorksSection() {
           {/* Step 02 */}
           <div>
             <p className="font-display italic font-black text-[88px] leading-none text-brand-border/35 mb-1 select-none">02</p>
-            <h3 className="text-lg font-semibold text-brand-text mb-2 -mt-5">Tell your story</h3>
+            <h3 className="text-lg font-semibold text-brand-text mb-2 -mt-5">Add your links</h3>
             <p className="text-sm text-brand-faint leading-relaxed mb-6">
-              Name, bio, photo, and sections. Add what fits — Products, Services, Skills, Talks, Links. We surface only what makes sense for your type.
+              Name, photo, bio, and links — social profiles, products, services, portfolio pieces. Add sections that fit your type; leave out what doesn't.
             </p>
             <StepVisual2 />
           </div>
@@ -613,9 +613,9 @@ function HowItWorksSection() {
           {/* Step 03 */}
           <div>
             <p className="font-display italic font-black text-[88px] leading-none text-brand-border/35 mb-1 select-none">03</p>
-            <h3 className="text-lg font-semibold text-brand-text mb-2 -mt-5">AI generates your page</h3>
+            <h3 className="text-lg font-semibold text-brand-text mb-2 -mt-5">AI elevates it to a portfolio</h3>
             <p className="text-sm text-brand-faint leading-relaxed mb-6">
-              10 credits. AI builds a complete, unique portfolio from your inputs — personalised copy, your sections, your theme's design language. Not a template.
+              10 credits. AI writes your copy, arranges your sections, and produces a portfolio that sounds like you — not a template, not a plain list of links.
             </p>
             <StepVisual3 />
           </div>
