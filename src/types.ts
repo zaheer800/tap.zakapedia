@@ -8,7 +8,6 @@ export type Finish = 'matte' | 'glossy'
 export interface TapUser {
   id: string
   username: string
-  email: string
   created_at: string
   user_type?: string
 }
