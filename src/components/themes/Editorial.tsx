@@ -9,9 +9,10 @@ interface Props {
   isPreview?: boolean
   userType?: string
   userTypes?: string[]
+  username?: string
 }
 
-export function Editorial({ page, links, isPreview = false, userTypes = [] }: Props) {
+export function Editorial({ page, links, isPreview = false, userTypes = [], username }: Props) {
   const accent = page.accent_color || '#F59E0B'
   const bannerUrl = (page as Page & { banner_url?: string | null }).banner_url
   const nameInitial = (page.name || 'T')[0].toUpperCase()
@@ -268,7 +269,7 @@ export function Editorial({ page, links, isPreview = false, userTypes = [] }: Pr
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 52, marginBottom: 8 }}>
           <div style={{ flex: 1, height: 1, backgroundColor: '#1C1C22' }} />
           <a
-            href="https://tap.zakapedia.in"
+            href={username ? `https://tap.zakapedia.in/?ref=${username}` : 'https://tap.zakapedia.in'}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => isPreview && e.preventDefault()}

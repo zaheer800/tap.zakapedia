@@ -128,7 +128,16 @@ Every user gets free credits on signup. Credits are consumed when using AI featu
 
 NFC cards and printed visiting cards — optional upsells. Pricing TBD.
 
-**Growth loop:** User generates portfolio → shares on WhatsApp → viewer asks "how did you make this?" → signs up → uses free credits → buys more.
+**Growth loop:** User generates portfolio → shares on WhatsApp → viewer asks "how did you make this?" → signs up via referral link → gets free credits → generates their own → cycle repeats.
+
+**3. Referral Program**
+
+Every user gets a unique referral link: `tap.zakapedia.in/?ref=username`
+
+- New signup via referral → referrer earns 20 bonus credits
+- New user still gets their standard 20 free credits on signup
+- No cash payouts — credits only, keeps it simple and cost-controlled
+- Every published Tap page has a subtle "Made with Tap" footer link carrying the page owner's referral code automatically — passive credit earning without active sharing
 
 ---
 
@@ -136,17 +145,19 @@ NFC cards and printed visiting cards — optional upsells. Pricing TBD.
 
 | Feature | Description | Priority | MVP |
 |---|---|---|---|
-| Auth & Signup | Email or Google sign-in, username selection, 20 free credits on signup | P0 | ✓ |
-| Profile Type Selection | First onboarding step: Creator / Professional / Business / Speaker — drives all downstream sections and AI prompt | P0 | ✓ |
+| Auth & Signup | Email or Google sign-in, username selection, 20 free credits on signup, referral code applied if present | P0 | ✓ |
+| Profile Type Selection | First onboarding step: Creator / Professional / Business / Service Professional / Speaker — drives all downstream sections and AI prompt | P0 | ✓ |
 | Profile Input | Name, bio, photo upload, role — fields adapt based on profile type | P0 | ✓ |
-| Sections Builder | Add/remove/reorder sections based on profile type — Links, Products, Services, Skills, Platforms, etc. | P0 | ✓ |
-| AI Portfolio Generation | Claude generates full portfolio HTML from profile + sections — unique layout per profile type | P0 | ✓ |
+| Resume Upload | Professional and Service Professional can upload PDF resume — AI extracts data and pre-fills onboarding form | P0 | ✓ |
+| Sections Builder | Add/remove/reorder sections based on profile type — Links, Products, Services, Skills, Platforms, Book Appointment, etc. | P0 | ✓ |
+| AI Portfolio Generation | Claude/Gemini generates full portfolio HTML from profile + sections — unique layout per profile type | P0 | ✓ |
 | Theme Selector | 3 curated themes — recommended per profile type, AI respects design language | P0 | ✓ |
 | Live Preview | Instant preview of generated portfolio before publishing | P0 | ✓ |
 | Published Page | Hosted at `tap.zakapedia.in/username`, mobile-first, loads <2s | P0 | ✓ |
 | Regenerate Portfolio | User edits profile/sections and regenerates — costs credits | P0 | ✓ |
 | Credit System | Credit balance shown in dashboard, consumed on AI actions | P0 | ✓ |
 | Buy Credits | Razorpay payment for credit packs (₹49 / ₹99 / ₹249) | P0 | ✓ |
+| Referral Program | Unique referral link per user, 20 bonus credits on successful referral, "Made with Tap" footer carries referral code | P0 | ✓ |
 | Analytics Dashboard | Page views, link clicks, traffic sources, 7-day sparkline | P1 | ✓ |
 | AI Bio Rewrite | "Make my bio punchier" — AI rewrites copy, costs 3 credits | P1 | ✓ |
 | NFC Card Order | Order form, Razorpay payment, manual fulfillment v1 | P1 | ✓ |
@@ -208,7 +219,7 @@ Profile type is the first choice a user makes after signup. It is the single dec
 **Onboarding steps (5 screens on mobile):**
 
 - **Step 1** — Profile type selection (auto-advances on tap)
-- **Step 2** — Basic details (name, username, photo, bio — fields adapt per type)
+- **Step 2** — Basic details (name, username, photo, bio — fields adapt per type). For Professional and Service Professional: option to upload PDF resume — AI extracts and pre-fills all fields automatically, bundled into the 10-credit generation
 - **Step 3** — Add sections (smart pre-suggestions per type, skippable)
 - **Step 4** — Pick theme (recommended one pre-selected)
 - **Step 5** — Generate portfolio (costs 10 credits, shows wow moment)
@@ -530,7 +541,8 @@ One screen. Numbers that make them smile and tell them what's working.
 | Visiting Cards Ordered | Total visiting card orders | 30 |
 | Page-to-Physical Conversion | % of page owners who order any physical product | > 10% |
 | Return to Regenerate | Users who regenerate portfolio after first publish | > 40% |
-| Traffic via NFC | % of page views with `?ref=nfc` | Tracked |
+| Referral Conversion | % of users who refer at least one person | > 20% |
+| Viral Coefficient | New signups per existing user via referral | > 0.5 |
 | WhatsApp Share Rate | Users who tap the share button | > 25% |
 
 ---
@@ -542,7 +554,8 @@ One screen. Numbers that make them smile and tell them what's working.
 | Frontend | Vite + React + TypeScript |
 | Styling | Tailwind CSS + custom theme tokens |
 | Backend / DB | Supabase — shared Zakapedia instance, `tap` schema |
-| AI | Anthropic Claude Haiku API |
+| AI (Development) | Google Gemini Flash — free tier for testing and development |
+| AI (Production) | Anthropic Claude Haiku — switched via environment variable |
 | Hosting | Vercel (`tap.zakapedia.in` subdomain) |
 | Payments | Razorpay (credits + physical orders) |
 | Analytics | Custom — Supabase tables, no third-party |
@@ -579,6 +592,7 @@ tap.page_views           — id, page_id, timestamp, source
 tap.link_clicks          — id, link_id, page_id, timestamp, source
 tap.credits              — user_id, balance, updated_at
 tap.credit_transactions  — id, user_id, action, credits_used, razorpay_payment_id, created_at
+tap.referrals            — id, referrer_user_id, referred_user_id, credits_awarded, created_at
 tap.nfc_orders           — id, user_id, page_id, name_on_card, address, quantity, status, razorpay_payment_id, created_at
 tap.visiting_card_orders — id, user_id, page_id, template, finish, quantity, design_file_url, address, status, razorpay_payment_id, created_at
 ```
@@ -640,10 +654,11 @@ Getting the first 50 users is the hardest problem. No ads, no budget, no field s
 - Podcast episode: building in public — share what you're learning as you build
 - First 10 users come from direct network
 
-**Month 2 — Community seeding:**
+**Month 2 — Referral loop activates:**
+- Every published page has "Made with Tap" footer with owner's referral code
+- Every user shares their referral link for passive credit earning
 - Share in indie hacker communities, product builder WhatsApp groups
-- Every user's published page has a subtle "Made with Tap" footer link — passive acquisition
-- WhatsApp sharing built in — every page share is a potential new user
+- WhatsApp sharing built in — every page share is a potential new signup
 
 **Month 3 — SMB channel:**
 - Partner with 2–3 print shops in Hyderabad

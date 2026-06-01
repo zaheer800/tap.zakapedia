@@ -501,7 +501,7 @@ export function AdminOrders() {
       views30Res, clicks30Res,
       nfcRes, cardRes, userMsgRes,
     ] = await Promise.all([
-      supabase.from('users').select('id, username, email, created_at'),
+      supabase.rpc('admin_get_users_with_email'),
       supabase.from('pages').select('id, published, user_id, name, theme, users(username)'),
       supabase.from('page_views').select('*', { count: 'exact', head: true }),
       supabase.from('link_clicks').select('*', { count: 'exact', head: true }),

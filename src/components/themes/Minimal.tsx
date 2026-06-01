@@ -9,9 +9,10 @@ interface Props {
   isPreview?: boolean
   userType?: string
   userTypes?: string[]
+  username?: string
 }
 
-export function Minimal({ page, links, isPreview = false, userTypes = [] }: Props) {
+export function Minimal({ page, links, isPreview = false, userTypes = [], username }: Props) {
   const accent = page.accent_color || '#3B82F6'
   const bannerUrl = (page as Page & { banner_url?: string | null }).banner_url
 
@@ -225,7 +226,7 @@ export function Minimal({ page, links, isPreview = false, userTypes = [] }: Prop
         {/* Footer */}
         <div style={{ textAlign: 'center', paddingBottom: 40, paddingTop: 8 }}>
           <a
-            href="https://tap.zakapedia.in"
+            href={username ? `https://tap.zakapedia.in/?ref=${username}` : 'https://tap.zakapedia.in'}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => isPreview && e.preventDefault()}

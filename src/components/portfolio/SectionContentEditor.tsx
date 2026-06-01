@@ -14,14 +14,23 @@ export function SectionContentEditor({ type, content, onChange }: Props) {
     case 'about':
       return (
         <textarea value={get('text')} onChange={e => onChange('text', e.target.value)}
-          placeholder="Your bio or about text…" rows={3} className={textareaCls} />
+          placeholder="Your bio or about text…" rows={5} className={textareaCls} />
       )
 
     case 'latest_post':
       return (
-        <div className="flex flex-col gap-2">
-          <input value={get('title')} onChange={e => onChange('title', e.target.value)} placeholder="Title of your latest post or video" className={inputCls} />
-          <input value={get('url')} onChange={e => onChange('url', e.target.value)} placeholder="https://…" className={inputCls} />
+        <div className="flex flex-col gap-4">
+          {([
+            { label: 'Post 1', titleKey: 'title',   urlKey: 'url'   },
+            { label: 'Post 2', titleKey: 'title_2', urlKey: 'url_2' },
+            { label: 'Post 3', titleKey: 'title_3', urlKey: 'url_3' },
+          ] as const).map(({ label, titleKey, urlKey }) => (
+            <div key={titleKey} className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-semibold text-brand-faint uppercase tracking-wide">{label}</span>
+              <input value={get(titleKey)} onChange={e => onChange(titleKey, e.target.value)} placeholder="Title of post or video" className={inputCls} />
+              <input value={get(urlKey)} onChange={e => onChange(urlKey, e.target.value)} placeholder="https://…" className={inputCls} />
+            </div>
+          ))}
         </div>
       )
 
@@ -29,27 +38,28 @@ export function SectionContentEditor({ type, content, onChange }: Props) {
       return (
         <textarea value={get('text')} onChange={e => onChange('text', e.target.value)}
           placeholder={'Logo Design – ₹5,000\nBrand Kit – ₹12,000\nWebsite – from ₹25,000'}
-          rows={3} className={textareaCls} />
+          rows={5} className={textareaCls} />
       )
 
     case 'skills':
       return (
-        <input value={get('text')} onChange={e => onChange('text', e.target.value)}
-          placeholder="React, Node.js, UI/UX Design, Figma…" className={inputCls} />
+        <textarea value={get('text')} onChange={e => onChange('text', e.target.value)}
+          placeholder={'React, Node.js, UI/UX Design, Figma\nProject Management, Agile, Scrum\nPhotography, Video Editing'}
+          rows={4} className={textareaCls} />
       )
 
     case 'credentials':
       return (
         <textarea value={get('text')} onChange={e => onChange('text', e.target.value)}
           placeholder={'MBBS – AIIMS Delhi\nMD Cardiology – PGIMER\nFACC – American College of Cardiology'}
-          rows={3} className={textareaCls} />
+          rows={5} className={textareaCls} />
       )
 
     case 'products':
       return (
         <textarea value={get('text')} onChange={e => onChange('text', e.target.value)}
           placeholder={'Chocolate Cake – ₹350\nPinwheel Sandwich – ₹120\nFilter Coffee – ₹60'}
-          rows={3} className={textareaCls} />
+          rows={5} className={textareaCls} />
       )
 
     case 'hours_location':
@@ -57,7 +67,7 @@ export function SectionContentEditor({ type, content, onChange }: Props) {
         <div className="flex flex-col gap-2">
           <textarea value={get('hours')} onChange={e => onChange('hours', e.target.value)}
             placeholder={'Mon–Sat: 9 AM – 8 PM\nSun: 10 AM – 5 PM'}
-            rows={2} className={textareaCls} />
+            rows={3} className={textareaCls} />
           <input value={get('address')} onChange={e => onChange('address', e.target.value)}
             placeholder="Full address or Google Maps link" className={inputCls} />
         </div>
@@ -80,7 +90,7 @@ export function SectionContentEditor({ type, content, onChange }: Props) {
       return (
         <textarea value={get('text')} onChange={e => onChange('text', e.target.value)}
           placeholder={'The Future of AI – Google DevFest 2024\nBuilding in Public – Startup Summit 2023'}
-          rows={3} className={textareaCls} />
+          rows={5} className={textareaCls} />
       )
 
     case 'contact':

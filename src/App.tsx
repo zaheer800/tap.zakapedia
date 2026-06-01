@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { Home } from './pages/Home'
@@ -12,6 +13,15 @@ import { PortfolioPage } from './pages/PortfolioPage'
 import { Privacy } from './pages/Privacy'
 import { Terms } from './pages/Terms'
 
+function ReferralCapture() {
+  const [searchParams] = useSearchParams()
+  useEffect(() => {
+    const ref = searchParams.get('ref')
+    if (ref) localStorage.setItem('tap_referral', ref)
+  }, [searchParams])
+  return null
+}
+
 function AuthRedirect() {
   const { user, tapUser, loading } = useAuth()
   if (loading) return null
@@ -24,6 +34,7 @@ function AuthRedirect() {
 export function App() {
   return (
     <BrowserRouter>
+      <ReferralCapture />
       <AuthProvider>
         <Routes>
           <Route path="/" element={<Home />} />

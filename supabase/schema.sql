@@ -10,7 +10,6 @@ CREATE TABLE tap.users (
   id          UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   username    TEXT UNIQUE NOT NULL
               CHECK (username ~ '^[a-z0-9][a-z0-9\-]{1,28}[a-z0-9]$'),
-  email       TEXT NOT NULL,
   created_at  TIMESTAMPTZ DEFAULT now()
 );
 

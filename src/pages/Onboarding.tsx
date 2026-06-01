@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, Check, Palette, Briefcase, Store, Wrench, Mic } from 'lucide-react'
+import { ChevronLeft, Check, Palette, Briefcase, Store, Wrench, Mic, FileText } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { Logo } from '../components/Logo'
 import { SECTION_META, SECTIONS_BY_TYPE } from '../constants/sectionMeta'
+import { extractResume } from '../services/ai'
 import type { ProfileType, Theme } from '../types'
 
 // ── Static config ────────────────────────────────────────────────────────────
@@ -78,6 +79,13 @@ export function Onboarding() {
   // Step 4 — theme
   const [theme, setTheme] = useState<Theme>('minimal')
 
+  // Resume upload (professional + service_pro only)
+  const resumeInputRef = useRef<HTMLInputElement>(null)
+  const [resumeExtracting, setResumeExtracting] = useState(false)
+  const [resumeExtracted, setResumeExtracted] = useState(false)
+  const [resumeError, setResumeError] = useState('')
+  const [resumeData, setResumeData] = useState<import('../services/ai').ResumeData | null>(null)
+
   // Submit
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -120,6 +128,48 @@ export function Onboarding() {
     return null
   }
 
+  async function handleResumeUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) { setResumeError('File too large — max 5 MB.'); return }
+    setResumeError('')
+    setResumeExtracting(true)
+    setResumeExtracted(false)
+    try {
+      const buffer = await file.arrayBuffer()
+      const bytes = new Uint8Array(buffer)
+      let binary = ''
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+      const base64 = btoa(binary)
+      const extracted = await extractResume(base64)
+      if (extracted.name) setName(extracted.name)
+      if (extracted.role) setRole(extracted.role)
+      if (extracted.bio) setBio(extracted.bio.slice(0, 500))
+      setResumeData(extracted)
+
+      // Auto-enable sections for any field the resume returned data for
+      const autoSections: Record<string, boolean> = {
+        skills:      !!extracted.skills,
+        services:    !!extracted.services,
+        credentials: !!extracted.credentials,
+        talks:       !!extracted.talks,
+        contact:     !!(extracted.phone),
+      }
+      setEnabledSections(prev => {
+        const next = new Set(prev)
+        Object.entries(autoSections).forEach(([type, has]) => { if (has) next.add(type) })
+        return next
+      })
+
+      setResumeExtracted(true)
+    } catch (err) {
+      setResumeError((err as Error).message ?? 'Could not read resume. Fill in manually.')
+    } finally {
+      setResumeExtracting(false)
+      if (resumeInputRef.current) resumeInputRef.current.value = ''
+    }
+  }
+
   async function handleCreate() {
     if (!user || !profileType || !available) return
     setSaving(true)
@@ -127,7 +177,7 @@ export function Onboarding() {
     try {
       // 1. Create tap user
       const { error: userErr } = await supabase.from('users').insert({
-        id: user.id, username: lowered, email: user.email ?? '',
+        id: user.id, username: lowered,
       })
       if (userErr) throw userErr
 
@@ -148,12 +198,20 @@ export function Onboarding() {
         .single()
       if (pageErr) throw pageErr
 
-      // 3. Create selected sections (content filled later in Portfolio tab)
+      // 3. Create selected sections, pre-filled from resume if available
       const pageId = pageData.id
+      const rd = resumeData
       const sectionRows = Array.from(enabledSections).map((type, i) => {
         const content: Record<string, string> = {}
         if (type === 'about') content.text = bio
-        if (type === 'contact') content.email = user.email ?? ''
+        if (type === 'contact') {
+          content.email = user.email ?? ''
+          if (rd?.phone) content.phone = rd.phone
+        }
+        if (type === 'skills' && rd?.skills) content.text = rd.skills
+        if (type === 'services' && rd?.services) content.text = rd.services
+        if (type === 'credentials' && rd?.credentials) content.text = rd.credentials
+        if (type === 'talks' && rd?.talks) content.text = rd.talks
         return { page_id: pageId, type, position: i, content }
       })
       if (sectionRows.length > 0) {
@@ -161,8 +219,35 @@ export function Onboarding() {
         if (secErr) throw secErr
       }
 
-      // 4. Grant 20 free signup credits
+      // 4. Grant 20 free signup credits (deduct 5 if resume was parsed)
       await supabase.rpc('grant_signup_bonus', { p_user_id: user.id })
+      if (resumeExtracted) {
+        await supabase.from('credits')
+          .update({ balance: 15, updated_at: new Date().toISOString() })
+          .eq('user_id', user.id)
+      }
+
+      // 5. Apply referral if one was stored before signup
+      try {
+        const refCode = localStorage.getItem('tap_referral')
+        if (refCode && refCode !== lowered) {
+          const { data: referrer } = await supabase.from('users').select('id').eq('username', refCode).maybeSingle()
+          if (referrer) {
+            await supabase.from('referrals').insert({
+              referrer_user_id: referrer.id,
+              referred_user_id: user.id,
+              credits_awarded: 20,
+            })
+            const { data: rc } = await supabase.from('credits').select('balance').eq('user_id', referrer.id).maybeSingle()
+            const newBal = ((rc as { balance: number } | null)?.balance ?? 0) + 20
+            await supabase.from('credits').update({ balance: newBal, updated_at: new Date().toISOString() }).eq('user_id', referrer.id)
+          }
+        }
+      } catch {
+        // Referral errors never block account creation
+      } finally {
+        localStorage.removeItem('tap_referral')
+      }
 
       await refreshTapUser()
       navigate('/dashboard')
@@ -251,6 +336,48 @@ export function Onboarding() {
           </p>
 
           <div className="flex flex-col gap-5">
+            {/* Resume upload — professional + service_pro only */}
+            {(profileType === 'professional' || profileType === 'service_pro') && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-brand-muted">Resume <span className="text-brand-faint font-normal">(optional)</span></label>
+                <label className={`flex items-center justify-center gap-2 border border-dashed rounded-xl px-4 py-4 cursor-pointer transition-colors text-xs ${
+                  resumeExtracting
+                    ? 'border-brand-border text-brand-faint cursor-wait'
+                    : resumeExtracted
+                      ? 'border-green-800/50 bg-green-950/20 text-green-400 hover:bg-green-950/30'
+                      : 'border-brand-border text-brand-faint hover:border-brand-muted hover:text-brand-muted'
+                }`}>
+                  {resumeExtracting ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-brand-border border-t-brand-muted rounded-full animate-spin flex-shrink-0" />
+                      Reading resume…
+                    </>
+                  ) : resumeExtracted ? (
+                    <>
+                      <Check className="w-4 h-4 flex-shrink-0" />
+                      Fields filled — upload another to replace
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-4 h-4 flex-shrink-0" />
+                      Upload PDF — AI fills your details
+                      <span className="text-brand-faint font-normal">· 5 credits</span>
+                    </>
+                  )}
+                  <input
+                    ref={resumeInputRef}
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    className="hidden"
+                    onChange={handleResumeUpload}
+                    disabled={resumeExtracting}
+                  />
+                </label>
+                {resumeError && <p className="text-[10px] text-red-400">{resumeError}</p>}
+                {resumeExtracted && <p className="text-[10px] text-brand-faint">Extracted from resume — review and edit below.</p>}
+              </div>
+            )}
+
             {/* Username */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-brand-muted">Your URL</label>
@@ -479,7 +606,13 @@ export function Onboarding() {
             </div>
             <div className="px-5 py-4 bg-brand-gold/[0.04]">
               <p className="text-[10px] font-semibold tracking-[0.16em] text-brand-gold uppercase mb-1">Free credits on us</p>
-              <p className="text-xs text-brand-muted">You'll receive <span className="text-brand-gold font-semibold">20 free credits</span> — enough for 2 portfolio generations. No card required.</p>
+              {resumeExtracted ? (
+                <p className="text-xs text-brand-muted">
+                  You'll start with <span className="text-brand-gold font-semibold">15 credits</span> — 20 free minus 5 for resume parsing.
+                </p>
+              ) : (
+                <p className="text-xs text-brand-muted">You'll receive <span className="text-brand-gold font-semibold">20 free credits</span> — enough for 2 portfolio generations. No card required.</p>
+              )}
             </div>
           </div>
 

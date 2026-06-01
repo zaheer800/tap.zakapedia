@@ -14,7 +14,9 @@
       "Skill(frontend-design)",
       "mcp__plugin_supabase_supabase__list_projects",
       "mcp__plugin_supabase_supabase__apply_migration",
-      "mcp__plugin_supabase_supabase__deploy_edge_function"
+      "mcp__plugin_supabase_supabase__deploy_edge_function",
+      "Bash(npx tsc *)",
+      "mcp__plugin_supabase_supabase__get_logs"
     ]
   },
   "enabledPlugins": {

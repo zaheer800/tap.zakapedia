@@ -95,5 +95,5 @@ export function PublicProfile() {
   const ThemeComponent =
     page.theme === 'editorial' ? Editorial : page.theme === 'expressive' ? Expressive : Minimal
 
-  return <ThemeComponent page={page} links={links} userTypes={userTypes} />
+  return <ThemeComponent page={page} links={links} userTypes={userTypes} username={username} />
 }

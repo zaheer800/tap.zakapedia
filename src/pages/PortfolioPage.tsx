@@ -97,12 +97,11 @@ export function PortfolioPage() {
     )
   }
 
-  // Live product catalog takes priority over AI-generated HTML
-  if (hasStructuredProducts(sections)) {
-    return <ProductCatalog page={page} sections={sections} links={links} />
-  }
-
+  // AI-generated HTML takes priority; fall back to live product catalog
   if (!page.portfolio_html) {
+    if (hasStructuredProducts(sections)) {
+      return <ProductCatalog page={page} sections={sections} links={links} />
+    }
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4 text-center">
         <FileX className="w-10 h-10 text-gray-300 mx-auto mb-4" />

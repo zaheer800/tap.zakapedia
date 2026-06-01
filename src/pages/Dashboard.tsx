@@ -6,7 +6,7 @@ import {
   Plus, ChevronDown, Check, ImageIcon,
   Palette, Code2, Briefcase, BookOpen, PenTool, Store, TrendingUp,
   Eye, X, MessageSquare, Settings, XCircle, Package, Layout,
-  Zap, Sparkles, RefreshCw,
+  Zap, Sparkles, RefreshCw, FileText,
 } from 'lucide-react'
 import { Logo } from '../components/Logo'
 import { compressImage } from '../utils/compressImage'
@@ -24,7 +24,7 @@ import { VisitingCardOrderForm } from '../components/orders/VisitingCardOrderFor
 import { SectionContentEditor } from '../components/portfolio/SectionContentEditor'
 import { ProductSectionEditor } from '../components/portfolio/ProductSectionEditor'
 import { SECTION_META } from '../constants/sectionMeta'
-import { generatePortfolio, rewriteBio } from '../services/ai'
+import { generatePortfolio, rewriteBio, extractResume } from '../services/ai'
 import type { Page, Link, Theme, Section, ContactMessage, OrderMessage, NFCOrder, VisitingCardOrder } from '../types'
 
 type Tab = 'build' | 'portfolio' | 'analytics' | 'nfc' | 'cards' | 'messages'
@@ -176,11 +176,14 @@ export function Dashboard() {
   const [links, setLinks] = useState<Link[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState<Tab>('build')
+  const [activeTab, setActiveTab] = useState<Tab>(() =>
+    (sessionStorage.getItem('tap_active_tab') as Tab) ?? 'build'
+  )
   const [menuOpen, setMenuOpen] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [bannerUploading, setBannerUploading] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [copiedReferral, setCopiedReferral] = useState(false)
   const [userTypes, setUserTypes] = useState<string[]>(() => {
     const raw = tapUser?.user_type ?? localStorage.getItem('tap_user_type') ?? '[]'
     try { return JSON.parse(raw) } catch { return raw ? [raw] : [] }
@@ -209,6 +212,14 @@ export function Dashboard() {
   const [generateSuccess, setGenerateSuccess] = useState(false)
   const [bioRewriting, setBioRewriting] = useState(false)
   const [bioRewriteError, setBioRewriteError] = useState('')
+  const resumeSectionInputRef = useRef<HTMLInputElement>(null)
+  const [resumeFilling, setResumeFilling] = useState(false)
+  const [resumeFillError, setResumeFillError] = useState('')
+  const [resumeFillDone, setResumeFillDone] = useState(false)
+
+  useEffect(() => {
+    sessionStorage.setItem('tap_active_tab', activeTab)
+  }, [activeTab])
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
@@ -313,6 +324,7 @@ export function Dashboard() {
   }
 
   function updatePage(updates: Partial<Page>) {
+    if (updates.bio !== undefined) updates.bio = updates.bio.slice(0, 500)
     setPage((prev) => prev ? { ...prev, ...updates } : prev)
   }
 
@@ -392,6 +404,13 @@ export function Dashboard() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  function copyReferralLink() {
+    if (!tapUser) return
+    navigator.clipboard.writeText(`https://tap.zakapedia.in/?ref=${tapUser.username}`)
+    setCopiedReferral(true)
+    setTimeout(() => setCopiedReferral(false), 2000)
+  }
+
   function shareWhatsApp() {
     if (!tapUser) return
     window.open(`https://wa.me/?text=${encodeURIComponent(`Check out my brand page: https://tap.zakapedia.in/${tapUser.username}`)}`, '_blank')
@@ -443,6 +462,83 @@ export function Dashboard() {
       setExpandedSection(data.id)
     }
     setAddSectionOpen(false)
+  }
+
+  async function handleResumeForSections(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !page || !user) return
+    if (file.size > 5 * 1024 * 1024) { setResumeFillError('File too large — max 5 MB.'); return }
+
+    const { data: latestCredits } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
+    const currentBalance = latestCredits?.balance ?? 0
+    setCredits(currentBalance)
+    if (currentBalance < 5) { setResumeFillError('Not enough credits (need 5).'); return }
+
+    setResumeFillError('')
+    setResumeFillDone(false)
+    setResumeFilling(true)
+    try {
+      const buffer = await file.arrayBuffer()
+      const bytes = new Uint8Array(buffer)
+      let binary = ''
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+      const base64 = btoa(binary)
+      const rd = await extractResume(base64)
+
+      // Update page name/bio if still empty
+      const pageUpdates: Partial<typeof page> = {}
+      if (!page.name && rd.name) pageUpdates.name = rd.name
+      if (!page.bio && rd.bio) pageUpdates.bio = rd.bio
+      if (Object.keys(pageUpdates).length) updatePage(pageUpdates)
+
+      // Map resume fields to section types
+      const sectionFills: Record<string, Record<string, string>> = {
+        about:       rd.bio    ? { text: rd.bio }    : {},
+        skills:      rd.skills ? { text: rd.skills } : {},
+        services:    rd.services    ? { text: rd.services }    : {},
+        credentials: rd.credentials ? { text: rd.credentials } : {},
+        talks:       rd.talks  ? { text: rd.talks }  : {},
+        contact:     { ...(rd.phone ? { phone: rd.phone } : {}), email: user?.email ?? '' },
+      }
+
+      // Fill existing sections that have no content yet
+      const existingTypes = new Set(sections.map(s => s.type))
+      const fillUpdates = sections
+        .filter(s => sectionFills[s.type] && Object.keys(sectionFills[s.type]).length)
+        .map(async s => {
+          const existing = s.content as Record<string, string>
+          const hasContent = Object.values(existing).some(v => String(v).trim())
+          if (hasContent) return
+          const newContent = { ...existing, ...sectionFills[s.type] }
+          await supabase.from('sections').update({ content: newContent }).eq('id', s.id)
+          setSections(prev => prev.map(sec => sec.id === s.id ? { ...sec, content: newContent } : sec))
+        })
+
+      // Create sections for extracted fields that don't exist yet
+      const createInserts = Object.entries(sectionFills)
+        .filter(([type, content]) => !existingTypes.has(type) && Object.keys(content).length)
+        .map(async ([type, content], i) => {
+          const position = sections.length + i
+          const { data } = await supabase
+            .from('sections')
+            .insert({ page_id: page.id, type, position, content })
+            .select()
+            .single()
+          if (data) setSections(prev => [...prev, data as Section])
+        })
+
+      await Promise.all([...fillUpdates, ...createInserts])
+      const { data: freshCredits } = await supabase.from('credits').select('balance').eq('user_id', user.id).single()
+      const newBalance = Math.max(0, (freshCredits?.balance ?? 0) - 5)
+      await supabase.from('credits').update({ balance: newBalance, updated_at: new Date().toISOString() }).eq('user_id', user.id)
+      setCredits(newBalance)
+      setResumeFillDone(true)
+    } catch (err) {
+      setResumeFillError((err as Error).message ?? 'Could not read resume.')
+    } finally {
+      setResumeFilling(false)
+      if (resumeSectionInputRef.current) resumeSectionInputRef.current.value = ''
+    }
   }
 
   function extractWhatsAppNumber(): string {
@@ -687,7 +783,7 @@ function toggleMessage(id: string) {
             <div className="flex items-center gap-1 bg-brand-surface border border-brand-border rounded-lg px-2.5 py-1" title="AI credits remaining">
               <Zap className="w-3 h-3 text-brand-gold" />
               <span className="text-[11px] font-semibold text-brand-gold tabular-nums">{credits}</span>
-              <span className="text-[11px] text-brand-faint">credits</span>
+              <span className="hidden sm:inline text-[11px] text-brand-faint">credits</span>
             </div>
           )}
 
@@ -797,6 +893,27 @@ function toggleMessage(id: string) {
                 )}
               </div>
 
+              {/* Referral card */}
+              <div className="mx-4 sm:mx-6 mt-3 rounded-2xl border border-brand-border bg-brand-surface px-5 py-4">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] font-semibold text-brand-faint uppercase tracking-[0.18em]">Refer & earn</p>
+                  <span className="text-[10px] text-brand-gold font-semibold">+20 credits per referral</span>
+                </div>
+                <p className="text-xs text-brand-muted mb-3">Share your link — every person who signs up earns you 20 credits.</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-[11px] text-brand-gold font-mono bg-brand-dark border border-brand-border rounded-lg px-3 py-2 truncate">
+                    tap.zakapedia.in/?ref={tapUser.username}
+                  </code>
+                  <button
+                    onClick={copyReferralLink}
+                    className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium bg-brand-surface border border-brand-border text-brand-muted hover:text-brand-text rounded-lg px-3 py-2 transition-colors"
+                  >
+                    {copiedReferral ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedReferral ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+
               <div className="px-4 sm:px-6 pt-6 pb-2 flex flex-col gap-7 max-w-xl">
 
                 {/* Profile section */}
@@ -895,7 +1012,7 @@ function toggleMessage(id: string) {
                         value={page.bio}
                         onChange={(e) => { setBioRewriteError(''); updatePage({ bio: e.target.value }) }}
                         placeholder="Tell the world what you're about — your brand in a few words"
-                        rows={3}
+                        rows={6}
                         maxLength={500}
                         disabled={bioRewriting}
                         className={`w-full bg-brand-surface border rounded-xl px-4 py-3 text-sm text-brand-text placeholder:text-brand-faint focus:border-brand-muted focus:outline-none transition-all resize-none ${bioRewriting ? 'opacity-50 cursor-not-allowed border-brand-border' : 'border-brand-border'}`}
@@ -1000,7 +1117,7 @@ function toggleMessage(id: string) {
                 <div className="relative">
                   <div className="w-[240px] h-[500px] rounded-[32px] border-[6px] border-brand-border overflow-hidden shadow-2xl bg-white">
                     <div style={{ width: '375px', height: '780px', transform: 'scale(0.64)', transformOrigin: 'top left', overflowY: 'hidden' }}>
-                      <ThemeComponent page={page} links={links} isPreview userTypes={userTypes} />
+                      <ThemeComponent page={page} links={links} isPreview userTypes={userTypes} username={tapUser.username} />
                     </div>
                   </div>
                   <div className="absolute top-3.5 left-1/2 -translate-x-1/2 w-16 h-3.5 bg-brand-border rounded-full" />
@@ -1057,8 +1174,23 @@ function toggleMessage(id: string) {
               <section className="mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-[10px] font-semibold text-brand-faint uppercase tracking-[0.18em]">Sections</h2>
-                  <span className="text-[10px] text-brand-faint">{sections.length} section{sections.length !== 1 ? 's' : ''}</span>
+                  <button
+                    onClick={() => resumeSectionInputRef.current?.click()}
+                    disabled={resumeFilling || (credits !== null && credits < 5)}
+                    className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-brand-gold border border-brand-gold/30 bg-brand-gold/5 rounded-full px-2.5 py-1 hover:bg-brand-gold/15 disabled:opacity-40 transition-all"
+                    title={credits !== null && credits < 5 ? `Not enough credits (need 5, have ${credits})` : '5 credits'}
+                  >
+                    {resumeFilling
+                      ? <><RefreshCw className="w-3 h-3 animate-spin" /> Reading…</>
+                      : resumeFillDone
+                      ? <><RefreshCw className="w-3 h-3" /> Re-upload resume <span className="text-brand-faint font-normal">· 5 credits</span></>
+                      : <><FileText className="w-3 h-3" /> Fill from resume <span className="text-brand-faint font-normal">· 5 credits</span></>
+                    }
+                  </button>
+                  <input ref={resumeSectionInputRef} type="file" accept=".pdf" onChange={handleResumeForSections} className="hidden" />
                 </div>
+                {resumeFillError && <p className="text-[10px] text-red-400 mb-2">{resumeFillError}</p>}
+                {resumeFillDone && <p className="text-[10px] text-green-400/70 mb-2">Sections filled from resume — review and edit as needed.</p>}
 
                 <div className="flex flex-col gap-2">
                   {sections.map(section => {
@@ -1260,12 +1392,21 @@ function toggleMessage(id: string) {
                   disabled={generating || (credits !== null && credits < 10)}
                   className="w-full flex items-center justify-center gap-2 bg-brand-gold text-brand-dark text-sm font-bold py-3.5 rounded-xl hover:bg-brand-gold-light transition-colors disabled:opacity-40"
                 >
-                  {generating
-                    ? <><span className="w-4 h-4 border-2 border-brand-dark border-t-transparent rounded-full animate-spin" /> Generating…</>
-                    : page.portfolio_html
-                      ? <><RefreshCw className="w-4 h-4" /> Regenerate · <Zap className="w-3.5 h-3.5" /> 10 credits</>
-                      : <><Sparkles className="w-4 h-4" /> Generate Portfolio with AI · <Zap className="w-3.5 h-3.5" /> 10 credits</>
-                  }
+                  {generating ? (
+                    <><span className="w-4 h-4 border-2 border-brand-dark border-t-transparent rounded-full animate-spin" /> Generating…</>
+                  ) : (
+                    <span className="flex flex-col items-center gap-0.5 leading-tight">
+                      <span className="flex items-center gap-1.5">
+                        {page.portfolio_html
+                          ? <><RefreshCw className="w-4 h-4" /> Regenerate Portfolio</>
+                          : <><Sparkles className="w-4 h-4" /> Generate Portfolio with AI</>
+                        }
+                      </span>
+                      <span className="flex items-center gap-1 text-[10px] font-semibold opacity-60">
+                        <Zap className="w-2.5 h-2.5" /> 10 credits
+                      </span>
+                    </span>
+                  )}
                 </button>
                 {credits !== null && credits < 10 && !generating && !generateSuccess && (
                   <p className="text-center text-xs text-red-400 mt-2">

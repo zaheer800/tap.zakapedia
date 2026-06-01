@@ -9,9 +9,10 @@ interface Props {
   isPreview?: boolean
   userType?: string
   userTypes?: string[]
+  username?: string
 }
 
-export function Expressive({ page, links, isPreview = false, userTypes = [] }: Props) {
+export function Expressive({ page, links, isPreview = false, userTypes = [], username }: Props) {
   const accent = page.accent_color || '#8B5CF6'
   const bannerUrl = (page as Page & { banner_url?: string | null }).banner_url
   const blob2Color = shiftHue(accent, 42)
@@ -280,7 +281,7 @@ export function Expressive({ page, links, isPreview = false, userTypes = [] }: P
         {/* Footer */}
         <p style={{ textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.5)', fontWeight: 700, paddingBottom: 8 }}>
           <a
-            href="https://tap.zakapedia.in"
+            href={username ? `https://tap.zakapedia.in/?ref=${username}` : 'https://tap.zakapedia.in'}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => isPreview && e.preventDefault()}
