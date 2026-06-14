@@ -16,7 +16,17 @@
       "mcp__plugin_supabase_supabase__apply_migration",
       "mcp__plugin_supabase_supabase__deploy_edge_function",
       "Bash(npx tsc *)",
-      "mcp__plugin_supabase_supabase__get_logs"
+      "mcp__plugin_supabase_supabase__get_logs",
+      "Bash(npm list *)",
+      "Bash(Get-ChildItem -Path \"E:\\\\tap.zakapedia\" -Recurse -Force)",
+      "Bash(Select-Object -First 100)",
+      "Bash(Format-Table FullName)",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\tap.zakapedia\" -Recurse -Force | Where-Object { -not $_.PSIsContainer } | Select-Object -First 100 FullName)",
+      "Bash(Get-ChildItem -Recurse -Include \"*.tsx\", \"*.ts\", \"*.jsx\", \"*.js\")",
+      "Bash(Measure-Object)",
+      "mcp__plugin_supabase_supabase__get_project_url",
+      "mcp__claude_ai_Vercel__list_deployments",
+      "mcp__claude_ai_Vercel__get_deployment_build_logs"
     ]
   },
   "enabledPlugins": {
