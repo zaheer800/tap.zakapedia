@@ -490,6 +490,7 @@ export function AdminOrders() {
 
   async function loadAll() {
     setLoading(true)
+    try {
     const now = Date.now()
     const ms7  = 7  * 24 * 60 * 60 * 1000
     const ms30 = 30 * 24 * 60 * 60 * 1000
@@ -501,7 +502,7 @@ export function AdminOrders() {
       views30Res, clicks30Res,
       nfcRes, cardRes, userMsgRes,
     ] = await Promise.all([
-      supabase.rpc('admin_get_users_with_email'),
+      supabase.schema('public').rpc('admin_get_users_with_email'),
       supabase.from('pages').select('id, published, user_id, name, theme, users(username)'),
       supabase.from('page_views').select('*', { count: 'exact', head: true }),
       supabase.from('link_clicks').select('*', { count: 'exact', head: true }),
@@ -512,7 +513,7 @@ export function AdminOrders() {
       supabase.from('order_messages').select('id, user_id, message, order_type, order_id, read, created_at, users(username)').eq('from_admin', false).order('created_at', { ascending: false }).limit(50),
     ])
 
-    const users    = usersRes.data ?? []
+    const users    = (usersRes.data ?? []) as any[]
     const pages    = pagesRes.data ?? []
     const views30  = views30Res.data ?? []
     const clicks30 = clicks30Res.data ?? []
@@ -607,7 +608,11 @@ export function AdminOrders() {
       allUsers,
       allPages,
     })
-    setLoading(false)
+    } catch (e) {
+      console.error('Admin loadAll error:', e)
+    } finally {
+      setLoading(false)
+    }
   }
 
   function copy(text: string, id: string) {
