@@ -8,7 +8,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Tap by Zakapedia** — a bio link page builder at `tap.zakapedia.in`. Free forever software; revenue from optional NFC cards and printed visiting cards.
 
-Stack: **Vite + React + TypeScript**, Tailwind CSS, Supabase (shared Zakapedia instance, `tap` schema), Vercel, Razorpay.
+Stack: **Vite + React + TypeScript**, Tailwind CSS, Supabase (shared Zakapedia instance, `tap` schema; the same project also holds the `crm` schema), Vercel.
+
+**Payments:** Razorpay is NOT integrated. Card and NFC orders are paid manually by UPI (`VITE_UPI_ID`) with the customer entering a UTR; the `razorpay_payment_id` columns below exist for a future integration and are unused.
+
+**AI features** go through the `ai-generate` edge function, which requires a signed-in user and allows 30 calls per user per rolling 24 hours (usage is logged in `tap.ai_usage`). Credits (`tap.credits`) are checked in the browser only and are not a security boundary.
 
 ---
 
