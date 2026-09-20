@@ -28,3 +28,9 @@ dist-ssr/
 .DS_Store
 Thumbs.db
 client_93160525704.json
+
+# Local secrets, logs and tooling - never commit
+client_secret*.json
+resend*.txt
+*.log
+.claude/settings.local.json
