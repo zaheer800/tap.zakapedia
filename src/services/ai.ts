@@ -1,5 +1,21 @@
 // AI calls are proxied through the Supabase edge function `ai-generate`.
 // The Google AI API key lives as a Supabase secret — never in the browser bundle.
+// The function requires a signed-in user, so requests carry the user's session token
+// (not the public anon key) and are limited per user on the server.
+
+import { supabase } from '../lib/supabase'
+
+async function aiRequestHeaders(): Promise<Record<string, string>> {
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  if (!token) throw new Error('Please sign in to use AI features')
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+    'apikey': supabaseKey,
+  }
+}
 
 export type ProfileType = 'creator' | 'professional' | 'business' | 'service_pro' | 'speaker'
 export type Theme = 'editorial' | 'minimal' | 'expressive'
@@ -25,15 +41,10 @@ export interface PortfolioInput {
 
 async function callAI(systemPrompt: string, userPrompt: string): Promise<string> {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
   const res = await fetch(`${supabaseUrl}/functions/v1/ai-generate`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${supabaseKey}`,
-      'apikey': supabaseKey,
-    },
+    headers: await aiRequestHeaders(),
     body: JSON.stringify({ systemPrompt, userPrompt }),
   })
 
@@ -386,7 +397,6 @@ export interface ResumeData {
 
 export async function extractResume(pdfBase64: string): Promise<ResumeData> {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
   const systemPrompt = `You are a resume parser. Extract key professional information from the provided PDF resume. Return ONLY a valid JSON object — nothing else, no markdown, no explanation.`
 
@@ -405,11 +415,7 @@ Return ONLY this JSON structure (omit keys where no data was found):
 
   const res = await fetch(`${supabaseUrl}/functions/v1/ai-generate`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${supabaseKey}`,
-      'apikey': supabaseKey,
-    },
+    headers: await aiRequestHeaders(),
     body: JSON.stringify({ systemPrompt, userPrompt, mode: 'extract_resume', resumePdf: pdfBase64 }),
   })
 
