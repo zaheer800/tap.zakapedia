@@ -1,0 +1,19 @@
+#!/bin/sh
+TOKEN_FILE="$HOME/.config/contextforge/upload_token"
+[ -f "$TOKEN_FILE" ] || exit 0
+TOKEN=$(cat "$TOKEN_FILE")
+PROJECT="tap.zakapedia"
+CHANGED=$(git diff-tree --no-commit-id --name-only -r HEAD -- docs)
+[ -z "$CHANGED" ] && exit 0
+for f in $CHANGED; do
+  case "$f" in
+    *.md)
+      [ -f "$f" ] || continue
+      curl -s -m 10 -X POST "http://192.168.1.150:8137/upload" \
+        -H "X-Upload-Token: $TOKEN" \
+        -F "project=$PROJECT" \
+        -F "doc_key=$f" \
+        -F "file=@$f" >/tmp/contextforge-sync.log 2>&1
+      ;;
+  esac
+done

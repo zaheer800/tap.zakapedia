@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> `docs/*.md` changes in commits are auto-mirrored to ContextForge (project "tap.zakapedia") via the `.githooks/post-commit` hook, which reads a token from `~/.config/contextforge/upload_token` (shared across projects on this VM, not in any repo) and no-ops silently if that file does not exist yet.
+
 ---
 
 ## Project
