@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import type { NFCOrder, VisitingCardOrder, OrderStatus, PrintingStatus, ShippingAddress } from '../types'
+import type { NFCOrder, VisitingCardOrder, OrderStatus, PrintingStatus, ShippingAddress, TapUser } from '../types'
 
 const ADMIN_EMAIL = 'zaheer800@gmail.com'
 
@@ -25,6 +25,29 @@ type AdminNFCOrder = NFCOrder & {
 type AdminCardOrder = VisitingCardOrder & {
   users: { username: string }
   pages: { name: string; bio: string; theme: string; accent_color: string }
+}
+
+// Shape of the `pages` select used for the users/pages overview (id, published, user_id, name, theme, users(username)).
+// Supabase infers the embedded `users` relation as an array regardless of cardinality, so index [0].
+interface AdminPageJoinRow {
+  id: string
+  published: boolean
+  user_id: string
+  name: string
+  theme: string
+  users: { username: string }[]
+}
+
+// Shape of the `order_messages` select used for the inbox tab
+interface AdminUserMessage {
+  id: string
+  user_id: string
+  message: string
+  order_type: string
+  order_id: string | null
+  read: boolean
+  created_at: string
+  users: { username: string }[]
 }
 
 interface DayActivity {
@@ -80,7 +103,7 @@ interface AdminData {
   cardOrders: AdminCardOrder[]
   pendingNfc: number
   pendingCards: number
-  userMessages: { id: string; user_id: string; message: string; order_type: string; order_id: string | null; read: boolean; created_at: string; users?: { username: string } }[]
+  userMessages: AdminUserMessage[]
   unreadUserMessages: number
   allUsers: UserRow[]
   allPages: PageRow[]
@@ -513,8 +536,8 @@ export function AdminOrders() {
       supabase.from('order_messages').select('id, user_id, message, order_type, order_id, read, created_at, users(username)').eq('from_admin', false).order('created_at', { ascending: false }).limit(50),
     ])
 
-    const users    = (usersRes.data ?? []) as any[]
-    const pages    = pagesRes.data ?? []
+    const users    = (usersRes.data ?? []) as TapUser[]
+    const pages    = (pagesRes.data ?? []) as AdminPageJoinRow[]
     const views30  = views30Res.data ?? []
     const clicks30 = clicks30Res.data ?? []
 
@@ -548,7 +571,7 @@ export function AdminOrders() {
     const pvMap: Record<string, number> = {}
     views30.forEach(v => { pvMap[v.page_id] = (pvMap[v.page_id] ?? 0) + 1 })
     const pageById = Object.fromEntries(
-      pages.map(p => [p.id, { name: p.name, username: (p.users as any)?.username ?? '' }])
+      pages.map(p => [p.id, { name: p.name, username: p.users?.[0]?.username ?? '' }])
     )
     const topProfiles: TopProfile[] = Object.entries(pvMap)
       .sort((a, b) => b[1] - a[1])
@@ -561,11 +584,11 @@ export function AdminOrders() {
 
     const nfcOrders   = (nfcRes.data ?? []) as AdminNFCOrder[]
     const cardOrders  = (cardRes.data ?? []) as AdminCardOrder[]
-    const userMessages = (userMsgRes.data ?? []) as any[]
+    const userMessages = (userMsgRes.data ?? []) as AdminUserMessage[]
 
     // All users enriched with published-page flag
     const publishedByUserId = new Set(pages.filter(p => p.published).map(p => p.user_id))
-    const allUsers: UserRow[] = (users as any[])
+    const allUsers: UserRow[] = users
       .map(u => ({
         id: u.id,
         username: u.username ?? '',
@@ -576,11 +599,11 @@ export function AdminOrders() {
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
     // All pages enriched with 30-day view count
-    const allPages: PageRow[] = (pages as any[])
+    const allPages: PageRow[] = pages
       .map(p => ({
         id: p.id,
         name: p.name ?? '',
-        username: (p.users as any)?.username ?? '',
+        username: p.users?.[0]?.username ?? '',
         theme: p.theme ?? '',
         published: p.published,
         views30: pvMap[p.id] ?? 0,
@@ -604,7 +627,7 @@ export function AdminOrders() {
       pendingNfc:    nfcOrders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled').length,
       pendingCards:  cardOrders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled').length,
       userMessages,
-      unreadUserMessages: userMessages.filter((m: any) => !m.read).length,
+      unreadUserMessages: userMessages.filter(m => !m.read).length,
       allUsers,
       allPages,
     })
@@ -1104,19 +1127,19 @@ export function AdminOrders() {
                   <Empty icon={<MessageSquare className="w-8 h-8" />} text="No support requests yet" />
                 ) : (
                   <div className="flex flex-col gap-2">
-                      {data.userMessages.map((msg: any) => (
+                      {data.userMessages.map((msg) => (
                         <div key={msg.id}
                           className="rounded-xl border p-4"
                           style={{ borderColor: !msg.read ? 'rgba(99,102,241,0.4)' : '#252018', backgroundColor: !msg.read ? 'rgba(99,102,241,0.05)' : '#141210' }}>
                           <div className="flex items-start gap-3">
                             <div className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 bg-indigo-900/40 text-indigo-400">
-                              {msg.users?.username?.[0]?.toUpperCase() ?? '?'}
+                              {msg.users?.[0]?.username?.[0]?.toUpperCase() ?? '?'}
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-2 mb-0.5">
                                 <div className="flex items-center gap-2">
                                   <span className={`text-sm font-semibold ${!msg.read ? 'text-brand-text' : 'text-brand-muted'}`}>
-                                    @{msg.users?.username ?? '—'}
+                                    @{msg.users?.[0]?.username ?? '—'}
                                   </span>
                                   <span className="text-[10px] text-brand-faint capitalize">{msg.order_type}</span>
                                 </div>

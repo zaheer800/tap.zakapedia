@@ -17,7 +17,9 @@ function parseItems(content: Record<string, unknown>): ProductItem[] {
     const raw = content.items
     if (typeof raw === 'string') return JSON.parse(raw)
     if (Array.isArray(raw)) return raw as ProductItem[]
-  } catch {}
+  } catch {
+    // malformed items JSON in stored content; fall through to empty catalog
+  }
   return []
 }
 
