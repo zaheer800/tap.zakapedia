@@ -1,0 +1,95 @@
+name: PR Review Pipeline
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  code-quality-gateway:
+    name: code-quality-gateway (${{ matrix.tool }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        tool: [semgrep, gitleaks, trivy]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Semgrep: default free OSS ruleset (p/ci), no SEMGREP_APP_TOKEN / Semgrep Cloud needed.
+      - name: Semgrep
+        if: matrix.tool == 'semgrep'
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: p/ci
+          generateSarif: "1"
+
+      - name: Upload Semgrep SARIF
+        if: matrix.tool == 'semgrep' && always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+        continue-on-error: true
+
+      # Gitleaks: secrets scanning, free for this use, no license/token needed.
+      - name: Gitleaks
+        if: matrix.tool == 'gitleaks'
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Trivy: filesystem/dependency scan (no container image to scan in this repo).
+      - name: Trivy filesystem scan
+        if: matrix.tool == 'trivy'
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy SARIF
+        if: matrix.tool == 'trivy' && always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+        continue-on-error: true
+
+  check-openrouter-secret:
+    name: check-openrouter-secret
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    outputs:
+      is_set: ${{ steps.check.outputs.is_set }}
+    steps:
+      # The `secrets` context is only readable in step-level expressions (env/with/if/run),
+      # not in a job-level `if:` — so the check has to happen here and be passed on as a
+      # job output for the pr-agent job below to gate on.
+      - id: check
+        run: echo "is_set=${{ secrets.OPENROUTER__KEY != '' }}" >> "$GITHUB_OUTPUT"
+
+  pr-agent:
+    name: pr-agent
+    runs-on: ubuntu-latest
+    needs: check-openrouter-secret
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    # Requires the OPENROUTER__KEY secret (repo Settings > Secrets and variables > Actions)
+    # before this job will actually run — until it's added, this condition skips it cleanly.
+    if: ${{ github.event_name == 'pull_request' && needs.check-openrouter-secret.outputs.is_set == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PR Agent review (OpenRouter / Nemotron)
+        uses: qodo-ai/pr-agent@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENROUTER__KEY: ${{ secrets.OPENROUTER__KEY }}
+          CONFIG__MODEL: "openrouter/nvidia/nemotron-3-super-120b-a12b:free"
